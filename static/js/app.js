@@ -1,0 +1,505 @@
+// ===== State =====
+let token = localStorage.getItem('token') || '';
+let currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+let categories = [];
+let currentCategory = null; // null = all categories
+let currentPage = 1;
+let totalPages = 1;
+let debounceTimer = null;
+
+// ===== API Helper =====
+async function api(method, path, data = null, isFormData = false) {
+    const opts = {
+        method,
+        headers: {}
+    };
+    if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+    if (data && !isFormData) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(data);
+    }
+    if (data && isFormData) {
+        opts.body = data;
+    }
+    try {
+        const res = await fetch('/api' + path, opts);
+        const json = await res.json();
+        if (res.status === 401) {
+            token = '';
+            currentUser = null;
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            showAuthPage();
+            showToast('登录已过期，请重新登录', 'error');
+            return null;
+        }
+        if (!res.ok) {
+            showToast(json.error || '操作失败', 'error');
+            return null;
+        }
+        return json;
+    } catch (e) {
+        showToast('网络错误: ' + e.message, 'error');
+        return null;
+    }
+}
+
+// ===== Toast =====
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// ===== Page Navigation =====
+function showAuthPage() {
+    document.getElementById('auth-page').classList.remove('hidden');
+    document.getElementById('main-page').classList.add('hidden');
+}
+
+function showMainPage() {
+    document.getElementById('auth-page').classList.add('hidden');
+    document.getElementById('main-page').classList.remove('hidden');
+    updateUserInfo();
+    loadCategories();
+    loadItems();
+}
+
+function updateUserInfo() {
+    const info = document.getElementById('user-info');
+    if (currentUser) {
+        let text = currentUser.username;
+        if (currentUser.is_group) text += ' (组账号)';
+        info.textContent = text;
+    }
+}
+
+// ===== Auth Tab =====
+function switchAuthTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    if (tab === 'login') {
+        document.getElementById('login-form').classList.remove('hidden');
+        document.getElementById('register-form').classList.add('hidden');
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    } else {
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('register-form').classList.remove('hidden');
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+    }
+}
+
+// ===== Auth Handlers =====
+async function handleLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+    const res = await api('POST', '/auth/login', { username, password });
+    if (res) {
+        token = res.token;
+        currentUser = res.user;
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        showToast('登录成功', 'success');
+        showMainPage();
+    }
+}
+
+async function handleRegister(e) {
+    e.preventDefault();
+    const username = document.getElementById('reg-username').value;
+    const password = document.getElementById('reg-password').value;
+    const isGroup = document.querySelector('input[name="reg-type"]:checked').value === 'group';
+    const res = await api('POST', '/auth/register', { username, password, is_group: isGroup });
+    if (res) {
+        token = res.token;
+        currentUser = res.user;
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        showToast('注册成功', 'success');
+        showMainPage();
+    }
+}
+
+async function handleLogout() {
+    await api('POST', '/auth/logout');
+    token = '';
+    currentUser = null;
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    showAuthPage();
+    showToast('已退出登录', 'info');
+}
+
+// ===== Modal =====
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// ===== Categories =====
+async function loadCategories() {
+    const res = await api('GET', '/categories');
+    if (res) {
+        categories = res.categories || [];
+        renderCategories();
+        updateCategorySelect();
+    }
+}
+
+function renderCategories() {
+    const list = document.getElementById('category-list');
+    let html = '<div class="category-item' + (currentCategory === null ? ' active' : '') + '" onclick="selectCategory(null)">';
+    html += '<span class="cat-name">全部</span></div>';
+    categories.forEach(cat => {
+        html += '<div class="category-item' + (currentCategory === cat.id ? ' active' : '') + '" onclick="selectCategory(' + cat.id + ')">';
+        html += '<span class="cat-name">' + escapeHtml(cat.name) + '</span>';
+        if (cat.is_default) html += '<span class="cat-badge">默认</span>';
+        if (!cat.is_default) {
+            html += '<span class="cat-actions">';
+            html += '<button class="btn btn-edit" onclick="event.stopPropagation();editCategory(' + cat.id + ',\'' + escapeHtml(cat.name) + '\')">编辑</button>';
+            html += '<button class="btn btn-delete" onclick="event.stopPropagation();deleteCategory(' + cat.id + ')">删除</button>';
+            html += '</span>';
+        }
+        html += '</div>';
+    });
+    list.innerHTML = html;
+}
+
+function selectCategory(catId) {
+    currentCategory = catId;
+    currentPage = 1;
+    renderCategories();
+    loadItems();
+    const cat = categories.find(c => c.id === catId);
+    document.getElementById('content-title').textContent = cat ? cat.name : '全部物品';
+}
+
+function updateCategorySelect() {
+    const select = document.getElementById('item-category');
+    select.innerHTML = '<option value="">请选择分类</option>';
+    categories.forEach(cat => {
+        select.innerHTML += '<option value="' + cat.id + '">' + escapeHtml(cat.name) + '</option>';
+    });
+}
+
+function showAddCategoryModal() {
+    document.getElementById('category-modal-title').textContent = '添加分类';
+    document.getElementById('category-edit-id').value = '';
+    document.getElementById('category-name').value = '';
+    openModal('category-modal');
+}
+
+function editCategory(id, name) {
+    document.getElementById('category-modal-title').textContent = '编辑分类';
+    document.getElementById('category-edit-id').value = id;
+    document.getElementById('category-name').value = name;
+    openModal('category-modal');
+}
+
+async function handleCategorySubmit(e) {
+    e.preventDefault();
+    const editId = document.getElementById('category-edit-id').value;
+    const name = document.getElementById('category-name').value;
+    let res;
+    if (editId) {
+        res = await api('PUT', '/categories/' + editId, { name });
+    } else {
+        res = await api('POST', '/categories', { name });
+    }
+    if (res) {
+        showToast(editId ? '分类更新成功' : '分类创建成功', 'success');
+        closeModal('category-modal');
+        loadCategories();
+    }
+}
+
+function deleteCategory(id) {
+    document.getElementById('confirm-message').textContent = '确定要删除该分类吗？分类下有物品时无法删除。';
+    document.getElementById('confirm-btn').onclick = async () => {
+        const res = await api('DELETE', '/categories/' + id);
+        if (res) {
+            showToast('分类删除成功', 'success');
+            if (currentCategory === id) { currentCategory = null; }
+            loadCategories();
+            loadItems();
+        }
+        closeModal('confirm-modal');
+    };
+    openModal('confirm-modal');
+}
+
+// ===== Items =====
+async function loadItems() {
+    const params = new URLSearchParams();
+    params.set('page', currentPage);
+    params.set('page_size', 20);
+    if (currentCategory) params.set('category_id', currentCategory);
+    const owner = document.getElementById('filter-owner').value;
+    if (owner !== 'all') params.set('owner', owner);
+    const keyword = document.getElementById('filter-keyword').value.trim();
+    if (keyword) params.set('keyword', keyword);
+
+    const res = await api('GET', '/items?' + params.toString());
+    if (res) {
+        renderItems(res.items || []);
+        renderPagination(res.total || 0, res.page_size || 20);
+    }
+}
+
+function debounceLoadItems() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => { currentPage = 1; loadItems(); }, 300);
+}
+
+function renderItems(items) {
+    const grid = document.getElementById('items-grid');
+    if (items.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>暂无物品，点击右上角添加</p></div>';
+        return;
+    }
+    let html = '';
+    items.forEach(item => {
+        const isExpired = new Date(item.expiry_date) < new Date();
+        const expDateClass = isExpired ? 'item-expired' : '';
+        html += '<div class="item-card" onclick="showItemDetail(\'' + item.id + '\')">';
+        if (item.image_url) {
+            html += '<img class="item-img" src="' + escapeHtml(item.image_url) + '" alt="' + escapeHtml(item.name) + '">';
+        } else {
+            html += '<div class="item-img-placeholder">📦</div>';
+        }
+        html += '<span class="item-category">' + escapeHtml(item.category_name || '未分类') + '</span>';
+        html += '<div class="item-name">' + escapeHtml(item.name) + '</div>';
+        html += '<div class="item-meta"><span>生产: ' + escapeHtml(item.production_date) + '</span></div>';
+        html += '<div class="item-meta ' + expDateClass + '"><span>过期: ' + escapeHtml(item.expiry_date) + (isExpired ? ' (已过期)' : '') + '</span></div>';
+        if (item.manufacturer) html += '<div class="item-meta"><span>厂家: ' + escapeHtml(item.manufacturer) + '</span></div>';
+        html += '<div class="item-owner">';
+        html += item.is_private ? '<span class="private-badge">私有</span>' : '<span class="shared-badge">组共享</span>';
+        html += ' ' + escapeHtml(item.created_by_name || '');
+        html += '</div>';
+        html += '<div class="item-actions" onclick="event.stopPropagation()">';
+        html += '<button class="btn btn-edit" onclick="editItem(\'' + item.id + '\')">编辑</button>';
+        html += '<button class="btn btn-delete" onclick="deleteItem(\'' + item.id + '\')">删除</button>';
+        html += '</div>';
+        html += '</div>';
+    });
+    grid.innerHTML = html;
+}
+
+function renderPagination(total, pageSize) {
+    const div = document.getElementById('pagination');
+    totalPages = Math.ceil(total / pageSize);
+    if (totalPages <= 1) { div.innerHTML = ''; return; }
+    let html = '';
+    html += '<button ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="goToPage(' + (currentPage - 1) + ')">上一页</button>';
+    for (let i = 1; i <= totalPages; i++) {
+        html += '<button class="' + (i === currentPage ? 'active' : '') + '" onclick="goToPage(' + i + ')">' + i + '</button>';
+    }
+    html += '<button ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="goToPage(' + (currentPage + 1) + ')">下一页</button>';
+    div.innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    loadItems();
+}
+
+// ===== Item Detail =====
+async function showItemDetail(itemId) {
+    const res = await api('GET', '/items/' + itemId);
+    if (!res) return;
+    const item = res.item;
+    const isExpired = new Date(item.expiry_date) < new Date();
+    let html = '';
+    if (item.image_url) html += '<img class="detail-image" src="' + escapeHtml(item.image_url) + '" alt="">';
+    html += '<div class="detail-grid">';
+    html += '<div class="detail-item"><div class="detail-label">物品名称</div><div class="detail-value">' + escapeHtml(item.name) + '</div></div>';
+    html += '<div class="detail-item"><div class="detail-label">分类</div><div class="detail-value">' + escapeHtml(item.category_name || '未分类') + '</div></div>';
+    html += '<div class="detail-item"><div class="detail-label">厂家</div><div class="detail-value">' + escapeHtml(item.manufacturer || '-') + '</div></div>';
+    html += '<div class="detail-item"><div class="detail-label">用途</div><div class="detail-value">' + escapeHtml(item.usage_desc || '-') + '</div></div>';
+    html += '<div class="detail-item"><div class="detail-label">生产日期</div><div class="detail-value">' + escapeHtml(item.production_date) + '</div></div>';
+    html += '<div class="detail-item"><div class="detail-label">过期日期</div><div class="detail-value ' + (isExpired ? 'item-expired' : '') + '">' + escapeHtml(item.expiry_date) + (isExpired ? ' (已过期)' : '') + '</div></div>';
+    html += '<div class="detail-item"><div class="detail-label">归属</div><div class="detail-value">' + (item.is_private ? '私有' : '组共享') + '</div></div>';
+    html += '<div class="detail-item"><div class="detail-label">创建者</div><div class="detail-value">' + escapeHtml(item.created_by_name || '-') + '</div></div>';
+    html += '</div>';
+    document.getElementById('item-detail-content').innerHTML = html;
+    openModal('item-detail-modal');
+}
+
+// ===== Add/Edit Item =====
+function showAddItemModal() {
+    document.getElementById('item-modal-title').textContent = '添加物品';
+    document.getElementById('item-edit-id').value = '';
+    document.getElementById('item-name').value = '';
+    document.getElementById('item-category').value = '';
+    document.getElementById('item-manufacturer').value = '';
+    document.getElementById('item-usage').value = '';
+    document.getElementById('item-prod-date').value = '';
+    document.getElementById('item-exp-date').value = '';
+    document.getElementById('item-image-url').value = '';
+    document.getElementById('item-image').value = '';
+    const preview = document.getElementById('item-image-preview');
+    preview.classList.add('hidden');
+    preview.src = '';
+    document.querySelector('input[name="item-private"][value="false"]').checked = true;
+    openModal('item-modal');
+}
+
+async function editItem(itemId) {
+    const res = await api('GET', '/items/' + itemId);
+    if (!res) return;
+    const item = res.item;
+    document.getElementById('item-modal-title').textContent = '编辑物品';
+    document.getElementById('item-edit-id').value = item.id;
+    document.getElementById('item-name').value = item.name;
+    document.getElementById('item-category').value = item.category_id;
+    document.getElementById('item-manufacturer').value = item.manufacturer || '';
+    document.getElementById('item-usage').value = item.usage_desc || '';
+    document.getElementById('item-prod-date').value = item.production_date;
+    document.getElementById('item-exp-date').value = item.expiry_date;
+    document.getElementById('item-image-url').value = item.image_url || '';
+    if (item.image_url) {
+        const preview = document.getElementById('item-image-preview');
+        preview.src = item.image_url;
+        preview.classList.remove('hidden');
+    }
+    const privateRadio = document.querySelector('input[name="item-private"][value="' + item.is_private + '"]');
+    if (privateRadio) privateRadio.checked = true;
+    openModal('item-modal');
+}
+
+async function handleItemSubmit(e) {
+    e.preventDefault();
+    const editId = document.getElementById('item-edit-id').value;
+    const data = {
+        name: document.getElementById('item-name').value,
+        category_id: parseInt(document.getElementById('item-category').value),
+        manufacturer: document.getElementById('item-manufacturer').value,
+        usage_desc: document.getElementById('item-usage').value,
+        production_date: document.getElementById('item-prod-date').value,
+        expiry_date: document.getElementById('item-exp-date').value,
+        image_url: document.getElementById('item-image-url').value,
+        is_private: document.querySelector('input[name="item-private"]:checked').value === 'true'
+    };
+    let res;
+    if (editId) {
+        res = await api('PUT', '/items/' + editId, data);
+    } else {
+        res = await api('POST', '/items', data);
+    }
+    if (res) {
+        showToast(editId ? '物品更新成功' : '物品创建成功', 'success');
+        closeModal('item-modal');
+        loadItems();
+    }
+}
+
+function deleteItem(itemId) {
+    document.getElementById('confirm-message').textContent = '确定要删除该物品吗？此操作不可恢复。';
+    document.getElementById('confirm-btn').onclick = async () => {
+        const res = await api('DELETE', '/items/' + itemId);
+        if (res) {
+            showToast('物品删除成功', 'success');
+            loadItems();
+        }
+        closeModal('confirm-modal');
+    };
+    openModal('confirm-modal');
+}
+
+// ===== Image Upload =====
+async function handleImageUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    const res = await api('POST', '/upload', formData, true);
+    if (res) {
+        document.getElementById('item-image-url').value = res.image_url;
+        const preview = document.getElementById('item-image-preview');
+        preview.src = res.image_url;
+        preview.classList.remove('hidden');
+        showToast('图片上传成功', 'success');
+    }
+}
+
+// ===== Group =====
+async function showGroupInfo() {
+    const res = await api('GET', '/groups/info');
+    if (!res) return;
+    let html = '';
+    if (res.is_group) {
+        html += '<div class="group-info"><p><strong>当前账号为组账号</strong></p>';
+        html += '<p>成员列表：</p>';
+        if (res.members && res.members.length > 0) {
+            html += '<ul class="member-list">';
+            res.members.forEach(m => html += '<li>' + escapeHtml(m.username) + '</li>');
+            html += '</ul>';
+        } else {
+            html += '<p style="color:#999">暂无成员加入</p>';
+        }
+        html += '</div>';
+    } else if (res.group) {
+        html += '<div class="group-info"><p>所属组：<strong>' + escapeHtml(res.group.name) + '</strong></p></div>';
+        html += '<button class="btn btn-danger btn-small" onclick="handleLeaveGroup()" style="margin-bottom:12px">退出组</button>';
+    } else {
+        html += '<div class="group-info"><p style="color:#999">您还未加入任何组</p></div>';
+    }
+    document.getElementById('group-info-content').innerHTML = html;
+    openModal('group-modal');
+}
+
+async function handleJoinGroup(e) {
+    e.preventDefault();
+    const groupUsername = document.getElementById('join-group-name').value;
+    const res = await api('POST', '/groups/join', { group_username: groupUsername });
+    if (res) {
+        showToast('加入组成功', 'success');
+        document.getElementById('join-group-name').value = '';
+        showGroupInfo();
+        loadItems();
+    }
+}
+
+async function handleLeaveGroup() {
+    const res = await api('POST', '/groups/leave');
+    if (res) {
+        showToast('退出组成功', 'success');
+        showGroupInfo();
+        loadItems();
+    }
+}
+
+// ===== Delete Account =====
+function handleDeleteAccount() {
+    const password = document.getElementById('delete-account-password').value;
+    if (!password) { showToast('请输入密码', 'error'); return; }
+    api('DELETE', '/auth/account', { password }).then(res => {
+        if (res) {
+            showToast('账号已注销', 'success');
+            token = '';
+            currentUser = null;
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            closeModal('delete-account-modal');
+            showAuthPage();
+        }
+    });
+}
+
+// ===== Utility =====
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// ===== Init =====
+(function init() {
+    if (token && currentUser) {
+        showMainPage();
+    } else {
+        showAuthPage();
+    }
+})();
