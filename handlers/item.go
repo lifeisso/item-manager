@@ -15,29 +15,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// getOwnerID determines the owner_id based on isPrivate flag
-// If isPrivate=true, owner_id = current user
-// If isPrivate=false (default, group shared), owner_id = group_id if user has a group, otherwise user_id
-func getOwnerID(ctx context.Context, userID uuid.UUID, isPrivate bool) (uuid.UUID, error) {
-	if isPrivate {
-		return userID, nil
-	}
-
-	// Check if user has a group
+// getGroupID returns the user's group_id (nil if not in a group)
+func getGroupID(ctx context.Context, userID uuid.UUID) (*uuid.UUID, error) {
 	var groupID *uuid.UUID
 	err := db.Pool.QueryRow(ctx,
 		`SELECT group_id FROM users WHERE id = $1`, userID,
 	).Scan(&groupID)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("查询用户组信息失败")
+		return nil, fmt.Errorf("查询用户组信息失败")
 	}
-
-	if groupID != nil {
-		return *groupID, nil
-	}
-
-	// User has no group, items belong to user
-	return userID, nil
+	return groupID, nil
 }
 
 // CreateItem creates a new item
@@ -77,41 +64,47 @@ func CreateItem(c *gin.Context) {
 		return
 	}
 
-	// Determine owner_id
-	ownerID, err := getOwnerID(context.Background(), userID, req.IsPrivate)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	// Determine ownergroup_id:
+	// - Private item: ownergroup_id = NULL
+	// - Shared item: ownergroup_id = user's group_id (must have a group)
+	var ownergroupID *uuid.UUID
+	if !req.IsPrivate {
+		groupID, err := getGroupID(context.Background(), userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if groupID == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "共享物品需要先加入一个组"})
+			return
+		}
+		ownergroupID = groupID
 	}
 
 	// Check item name uniqueness within owner
 	var nameExists bool
 	err = db.Pool.QueryRow(context.Background(),
 		`SELECT EXISTS(SELECT 1 FROM items WHERE owner_id = $1 AND name = $2)`,
-		ownerID, req.Name,
+		userID, req.Name,
 	).Scan(&nameExists)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "检查物品名称失败"})
 		return
 	}
 	if nameExists {
-		ownerType := "个人"
-		if !req.IsPrivate {
-			ownerType = "组"
-		}
-		c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("%s物品中已存在同名物品", ownerType)})
+		c.JSON(http.StatusConflict, gin.H{"error": "已存在同名物品"})
 		return
 	}
 
-	// Insert item
+	// Insert item: owner_id is always the creator, ownergroup_id indicates group sharing
 	var itemID uuid.UUID
 	err = db.Pool.QueryRow(context.Background(),
 		`INSERT INTO items (name, category_id, manufacturer, usage_desc, production_date, expiry_date, 
-			image_url, owner_id, is_private, created_by) 
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+			image_url, owner_id, ownergroup_id, is_private, created_by) 
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
 		req.Name, req.CategoryID, req.Manufacturer, req.UsageDesc,
 		req.ProductionDate, req.ExpiryDate, req.ImageURL,
-		ownerID, req.IsPrivate, userID,
+		userID, ownergroupID, req.IsPrivate, userID,
 	).Scan(&itemID)
 
 	if err != nil {
@@ -144,20 +137,25 @@ func GetItems(c *gin.Context) {
 
 	offset := (query.Page - 1) * query.PageSize
 
+	// Get user's group_id
+	groupID, _ := getGroupID(context.Background(), userID)
+
 	// Build query based on owner filter
-	// "self" = items owned by user (private)
-	// "group" = items owned by user's group (shared)
-	// default = all items accessible to user (both self and group)
+	// "self" = items created by user (both private and shared)
+	// "group" = shared items in user's group (ownergroup_id = group_id)
+	// default = all items accessible to user (self + group shared)
 	baseQuery := `
 		SELECT i.id, i.name, i.category_id, c.name as category_name, 
 			i.manufacturer, i.usage_desc, 
 			i.production_date::text, i.expiry_date::text, 
-			i.image_url, i.owner_id, i.is_private, i.created_by, 
+			i.image_url, i.owner_id, i.ownergroup_id, i.is_private, i.created_by, 
 			u.username as created_by_name,
+			g.username as ownergroup_name,
 			i.created_at, i.updated_at
 		FROM items i
 		LEFT JOIN categories c ON i.category_id = c.id
 		LEFT JOIN users u ON i.created_by = u.id
+		LEFT JOIN users g ON i.ownergroup_id = g.id
 		WHERE `
 
 	var args []interface{}
@@ -165,17 +163,13 @@ func GetItems(c *gin.Context) {
 
 	switch query.Owner {
 	case "self":
-		// Items owned by the user (private items)
+		// Items created by this user
 		baseQuery += fmt.Sprintf("i.owner_id = $%d", argIdx)
 		args = append(args, userID)
 		argIdx++
 	case "group":
-		// Items owned by the user's group
-		var groupID *uuid.UUID
-		err := db.Pool.QueryRow(context.Background(),
-			`SELECT group_id FROM users WHERE id = $1`, userID,
-		).Scan(&groupID)
-		if err != nil || groupID == nil {
+		// Shared items in the group (ownergroup_id = group_id)
+		if groupID == nil {
 			c.JSON(http.StatusOK, gin.H{
 				"items":     []interface{}{},
 				"total":     0,
@@ -184,18 +178,13 @@ func GetItems(c *gin.Context) {
 			})
 			return
 		}
-		baseQuery += fmt.Sprintf("i.owner_id = $%d", argIdx)
+		baseQuery += fmt.Sprintf("i.ownergroup_id = $%d", argIdx)
 		args = append(args, *groupID)
 		argIdx++
 	default:
-		// All items: both user's own and group's
-		var groupID *uuid.UUID
-		db.Pool.QueryRow(context.Background(),
-			`SELECT group_id FROM users WHERE id = $1`, userID,
-		).Scan(&groupID)
-
+		// All accessible items: own items + group shared items
 		if groupID != nil {
-			baseQuery += fmt.Sprintf("(i.owner_id = $%d OR i.owner_id = $%d)", argIdx, argIdx+1)
+			baseQuery += fmt.Sprintf("(i.owner_id = $%d OR i.ownergroup_id = $%d)", argIdx, argIdx+1)
 			args = append(args, userID, *groupID)
 			argIdx += 2
 		} else {
@@ -205,11 +194,24 @@ func GetItems(c *gin.Context) {
 		}
 	}
 
-	// Add category filter
+	// Add category filter - match by category name instead of ID
+	// This allows group members to see shared items with the same category name
+	// even if the category IDs differ between users
 	if query.CategoryID > 0 {
-		baseQuery += fmt.Sprintf(" AND i.category_id = $%d", argIdx)
-		args = append(args, query.CategoryID)
-		argIdx++
+		var categoryName string
+		err := db.Pool.QueryRow(context.Background(),
+			`SELECT name FROM categories WHERE id = $1`, query.CategoryID,
+		).Scan(&categoryName)
+		if err == nil && categoryName != "" {
+			baseQuery += fmt.Sprintf(" AND c.name = $%d", argIdx)
+			args = append(args, categoryName)
+			argIdx++
+		} else {
+			// Category not found, return empty
+			baseQuery += fmt.Sprintf(" AND i.category_id = $%d", argIdx)
+			args = append(args, query.CategoryID)
+			argIdx++
+		}
 	}
 
 	// Add keyword search
@@ -221,9 +223,8 @@ func GetItems(c *gin.Context) {
 		argIdx += 3
 	}
 
-	// Count total
-	countQuery := "SELECT COUNT(*) FROM items i LEFT JOIN categories c ON i.category_id = c.id LEFT JOIN users u ON i.created_by = u.id WHERE "
-	// Rebuild WHERE for count
+	// Count total - reuse the same WHERE logic
+	countQuery := `SELECT COUNT(*) FROM items i LEFT JOIN categories c ON i.category_id = c.id LEFT JOIN users u ON i.created_by = u.id LEFT JOIN users g ON i.ownergroup_id = g.id WHERE `
 	countWhere := ""
 	countArgs := []interface{}{}
 	cargIdx := 1
@@ -234,22 +235,14 @@ func GetItems(c *gin.Context) {
 		countArgs = append(countArgs, userID)
 		cargIdx++
 	case "group":
-		var groupID *uuid.UUID
-		db.Pool.QueryRow(context.Background(),
-			`SELECT group_id FROM users WHERE id = $1`, userID,
-		).Scan(&groupID)
 		if groupID != nil {
-			countWhere += fmt.Sprintf("i.owner_id = $%d", cargIdx)
+			countWhere += fmt.Sprintf("i.ownergroup_id = $%d", cargIdx)
 			countArgs = append(countArgs, *groupID)
 			cargIdx++
 		}
 	default:
-		var groupID *uuid.UUID
-		db.Pool.QueryRow(context.Background(),
-			`SELECT group_id FROM users WHERE id = $1`, userID,
-		).Scan(&groupID)
 		if groupID != nil {
-			countWhere += fmt.Sprintf("(i.owner_id = $%d OR i.owner_id = $%d)", cargIdx, cargIdx+1)
+			countWhere += fmt.Sprintf("(i.owner_id = $%d OR i.ownergroup_id = $%d)", cargIdx, cargIdx+1)
 			countArgs = append(countArgs, userID, *groupID)
 			cargIdx += 2
 		} else {
@@ -259,10 +252,19 @@ func GetItems(c *gin.Context) {
 		}
 	}
 	if query.CategoryID > 0 {
-		countWhere += fmt.Sprintf(" AND i.category_id = $%d", cargIdx)
-		fmt.Println("-----------", countWhere);
-		countArgs = append(countArgs, query.CategoryID)
-		cargIdx++
+		var categoryName string
+		err := db.Pool.QueryRow(context.Background(),
+			`SELECT name FROM categories WHERE id = $1`, query.CategoryID,
+		).Scan(&categoryName)
+		if err == nil && categoryName != "" {
+			countWhere += fmt.Sprintf(" AND c.name = $%d", cargIdx)
+			countArgs = append(countArgs, categoryName)
+			cargIdx++
+		} else {
+			countWhere += fmt.Sprintf(" AND i.category_id = $%d", cargIdx)
+			countArgs = append(countArgs, query.CategoryID)
+			cargIdx++
+		}
 	}
 	if query.Keyword != "" {
 		countWhere += fmt.Sprintf(" AND (i.name ILIKE $%d OR i.manufacturer ILIKE $%d OR i.usage_desc ILIKE $%d)",
@@ -271,7 +273,6 @@ func GetItems(c *gin.Context) {
 		countArgs = append(countArgs, keyword, keyword, keyword)
 	}
 
-	fmt.Println("-----------====", countQuery+countWhere);
 	var total int
 	db.Pool.QueryRow(context.Background(), countQuery+countWhere, countArgs...).Scan(&total)
 
@@ -289,14 +290,19 @@ func GetItems(c *gin.Context) {
 	items := []models.Item{}
 	for rows.Next() {
 		var item models.Item
+		var ownergroupName *string
 		if err := rows.Scan(
 			&item.ID, &item.Name, &item.CategoryID, &item.CategoryName,
 			&item.Manufacturer, &item.UsageDesc,
 			&item.ProductionDate, &item.ExpiryDate,
-			&item.ImageURL, &item.OwnerID, &item.IsPrivate, &item.CreatedBy,
+			&item.ImageURL, &item.OwnerID, &item.OwnergroupID, &item.IsPrivate, &item.CreatedBy,
 			&item.CreatedByName,
+			&ownergroupName,
 			&item.CreatedAt, &item.UpdatedAt,
 		); err == nil {
+			if ownergroupName != nil {
+				item.OwnergroupName = *ownergroupName
+			}
 			items = append(items, item)
 		}
 	}
@@ -315,25 +321,28 @@ func GetItem(c *gin.Context) {
 	itemID := c.Param("id")
 
 	var item models.Item
-	var ownerID uuid.UUID
+	var ownergroupName *string
 	err := db.Pool.QueryRow(context.Background(),
 		`SELECT i.id, i.name, i.category_id, c.name as category_name, 
 			i.manufacturer, i.usage_desc, 
 			i.production_date::text, i.expiry_date::text, 
-			i.image_url, i.owner_id, i.is_private, i.created_by, 
+			i.image_url, i.owner_id, i.ownergroup_id, i.is_private, i.created_by, 
 			u.username as created_by_name,
+			g.username as ownergroup_name,
 			i.created_at, i.updated_at
 		 FROM items i
 		 LEFT JOIN categories c ON i.category_id = c.id
 		 LEFT JOIN users u ON i.created_by = u.id
+		 LEFT JOIN users g ON i.ownergroup_id = g.id
 		 WHERE i.id = $1`,
 		itemID,
 	).Scan(
 		&item.ID, &item.Name, &item.CategoryID, &item.CategoryName,
 		&item.Manufacturer, &item.UsageDesc,
 		&item.ProductionDate, &item.ExpiryDate,
-		&item.ImageURL, &ownerID, &item.IsPrivate, &item.CreatedBy,
+		&item.ImageURL, &item.OwnerID, &item.OwnergroupID, &item.IsPrivate, &item.CreatedBy,
 		&item.CreatedByName,
+		&ownergroupName,
 		&item.CreatedAt, &item.UpdatedAt,
 	)
 	if err != nil {
@@ -341,13 +350,16 @@ func GetItem(c *gin.Context) {
 		return
 	}
 
+	if ownergroupName != nil {
+		item.OwnergroupName = *ownergroupName
+	}
+
 	// Check access: user must be the owner or in the same group
-	if !isItemAccessible(c, userID, ownerID) {
+	if !isItemAccessible(userID, item.OwnerID, item.OwnergroupID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权访问该物品"})
 		return
 	}
 
-	item.OwnerID = ownerID
 	c.JSON(http.StatusOK, gin.H{"item": item})
 }
 
@@ -380,33 +392,39 @@ func UpdateItem(c *gin.Context) {
 
 	// Get existing item
 	var existingOwnerID uuid.UUID
+	var existingOwnergroupID *uuid.UUID
 	var existingIsPrivate bool
 	err = db.Pool.QueryRow(context.Background(),
-		`SELECT owner_id, is_private FROM items WHERE id = $1`, itemID,
-	).Scan(&existingOwnerID, &existingIsPrivate)
+		`SELECT owner_id, ownergroup_id, is_private FROM items WHERE id = $1`, itemID,
+	).Scan(&existingOwnerID, &existingOwnergroupID, &existingIsPrivate)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "物品不存在"})
 		return
 	}
 
 	// Check access
-	if !isItemAccessible(c, userID, existingOwnerID) {
+	if !isItemAccessible(userID, existingOwnerID, existingOwnergroupID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权修改该物品"})
 		return
 	}
 
-	// Determine new owner if isPrivate changed
+	// Determine new ownergroup_id if isPrivate changed
 	isPrivate := existingIsPrivate
-	if req.IsPrivate != nil {
-		isPrivate = *req.IsPrivate
-	}
+	var newOwnergroupID *uuid.UUID = existingOwnergroupID
 
-	newOwnerID := existingOwnerID
 	if req.IsPrivate != nil && *req.IsPrivate != existingIsPrivate {
-		newOwnerID, err = getOwnerID(context.Background(), userID, isPrivate)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
+		isPrivate = *req.IsPrivate
+		if isPrivate {
+			// Switching to private: clear group
+			newOwnergroupID = nil
+		} else {
+			// Switching to shared: set group
+			groupID, err := getGroupID(context.Background(), userID)
+			if err != nil || groupID == nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "共享物品需要先加入一个组"})
+				return
+			}
+			newOwnergroupID = groupID
 		}
 	}
 
@@ -419,7 +437,7 @@ func UpdateItem(c *gin.Context) {
 		var nameExists bool
 		err = db.Pool.QueryRow(context.Background(),
 			`SELECT EXISTS(SELECT 1 FROM items WHERE owner_id = $1 AND name = $2 AND id != $3)`,
-			newOwnerID, req.Name, itemID,
+			existingOwnerID, req.Name, itemID,
 		).Scan(&nameExists)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "检查物品名称失败"})
@@ -435,11 +453,11 @@ func UpdateItem(c *gin.Context) {
 	_, err = db.Pool.Exec(context.Background(),
 		`UPDATE items SET name = $1, category_id = $2, manufacturer = $3, usage_desc = $4, 
 			production_date = $5, expiry_date = $6, image_url = $7, 
-			owner_id = $8, is_private = $9, updated_at = NOW()
+			ownergroup_id = $8, is_private = $9, updated_at = NOW()
 		 WHERE id = $10`,
 		req.Name, req.CategoryID, req.Manufacturer, req.UsageDesc,
 		req.ProductionDate, req.ExpiryDate, req.ImageURL,
-		newOwnerID, isPrivate, itemID,
+		newOwnergroupID, isPrivate, itemID,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新物品失败"})
@@ -456,16 +474,17 @@ func DeleteItem(c *gin.Context) {
 
 	// Get existing item
 	var ownerID uuid.UUID
+	var ownergroupID *uuid.UUID
 	err := db.Pool.QueryRow(context.Background(),
-		`SELECT owner_id FROM items WHERE id = $1`, itemID,
-	).Scan(&ownerID)
+		`SELECT owner_id, ownergroup_id FROM items WHERE id = $1`, itemID,
+	).Scan(&ownerID, &ownergroupID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "物品不存在"})
 		return
 	}
 
 	// Check access
-	if !isItemAccessible(c, userID, ownerID) {
+	if !isItemAccessible(userID, ownerID, ownergroupID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权删除该物品"})
 		return
 	}
@@ -482,22 +501,25 @@ func DeleteItem(c *gin.Context) {
 }
 
 // isItemAccessible checks if a user can access an item
-func isItemAccessible(c *gin.Context, userID uuid.UUID, ownerID uuid.UUID) bool {
-	// User owns the item directly
+// Accessible if: user is the owner (owner_id) OR user's group matches ownergroup_id
+func isItemAccessible(userID uuid.UUID, ownerID uuid.UUID, ownergroupID *uuid.UUID) bool {
+	// User is the creator/owner
 	if userID == ownerID {
 		return true
 	}
 
-	// Check if owner is user's group
-	var groupID *uuid.UUID
-	err := db.Pool.QueryRow(context.Background(),
-		`SELECT group_id FROM users WHERE id = $1`, userID,
-	).Scan(&groupID)
-	if err != nil || groupID == nil {
-		return false
+	// Check if item is shared with user's group
+	if ownergroupID == nil {
+		return false // Private item, only owner can access
 	}
 
-	return *groupID == ownerID
+	// Get user's group
+	userGroupID, err := getGroupID(context.Background(), userID)
+	if err != nil || userGroupID == nil {
+		return false // User has no group
+	}
+
+	return *userGroupID == *ownergroupID
 }
 
 // UploadImage handles image upload

@@ -8,21 +8,23 @@ import (
 
 // Item represents a stored item
 type Item struct {
-	ID             uuid.UUID `json:"id"`
-	Name           string    `json:"name"`
-	CategoryID     int       `json:"category_id"`
-	CategoryName   string    `json:"category_name"`
-	Manufacturer   string    `json:"manufacturer"`
-	UsageDesc      string    `json:"usage_desc"`
-	ProductionDate string    `json:"production_date"` // YYYY-MM-DD
-	ExpiryDate     string    `json:"expiry_date"`     // YYYY-MM-DD
-	ImageURL       string    `json:"image_url"`
-	OwnerID        uuid.UUID `json:"owner_id"`
-	IsPrivate      bool      `json:"is_private"`
-	CreatedBy      uuid.UUID `json:"created_by"`
-	CreatedByName  string    `json:"created_by_name"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             uuid.UUID  `json:"id"`
+	Name           string     `json:"name"`
+	CategoryID     int        `json:"category_id"`
+	CategoryName   string     `json:"category_name"`
+	Manufacturer   string     `json:"manufacturer"`
+	UsageDesc      string     `json:"usage_desc"`
+	ProductionDate string     `json:"production_date"` // YYYY-MM-DD
+	ExpiryDate     string     `json:"expiry_date"`     // YYYY-MM-DD
+	ImageURL       string     `json:"image_url"`
+	OwnerID        uuid.UUID  `json:"owner_id"`
+	OwnergroupID   *uuid.UUID `json:"ownergroup_id"`   // NULL for private items, group_id for shared items
+	OwnergroupName string     `json:"ownergroup_name"` // group name for display
+	IsPrivate      bool       `json:"is_private"`
+	CreatedBy      uuid.UUID  `json:"created_by"`
+	CreatedByName  string     `json:"created_by_name"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 // CreateItemRequest represents creating a new item

@@ -92,6 +92,7 @@ func Migrate() error {
 			expiry_date DATE NOT NULL,
 			image_url TEXT DEFAULT '',
 			owner_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+			ownergroup_id UUID REFERENCES users(id) ON DELETE SET NULL,
 			is_private BOOLEAN DEFAULT FALSE,
 			created_by UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -117,11 +118,21 @@ func Migrate() error {
 		return fmt.Errorf("failed to create sessions table: %w", err)
 	}
 
+	// Migrate: add ownergroup_id column if not exists (upgrade from old schema without this column)
+	Pool.Exec(ctx, `ALTER TABLE items ADD COLUMN IF NOT EXISTS ownergroup_id UUID REFERENCES users(id) ON DELETE SET NULL`)
+
+	// Migrate: update existing data - set ownergroup_id based on is_private and owner
+	// For shared items (is_private=false), set ownergroup_id = owner_id (old model: owner_id was group id)
+	// For private items (is_private=true), set ownergroup_id = NULL
+	Pool.Exec(ctx, `UPDATE items SET ownergroup_id = owner_id WHERE is_private = false AND ownergroup_id IS NULL`)
+	Pool.Exec(ctx, `UPDATE items SET ownergroup_id = NULL WHERE is_private = true`)
+
 	// Create indexes
 	indexes := []string{
 		"CREATE INDEX IF NOT EXISTS idx_users_group_id ON users(group_id)",
 		"CREATE INDEX IF NOT EXISTS idx_categories_user_id ON categories(user_id)",
 		"CREATE INDEX IF NOT EXISTS idx_items_owner_id ON items(owner_id)",
+		"CREATE INDEX IF NOT EXISTS idx_items_ownergroup_id ON items(ownergroup_id)",
 		"CREATE INDEX IF NOT EXISTS idx_items_created_by ON items(created_by)",
 		"CREATE INDEX IF NOT EXISTS idx_items_category_id ON items(category_id)",
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)",

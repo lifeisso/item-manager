@@ -274,7 +274,7 @@ function renderItems(items) {
         html += '<div class="item-meta ' + expDateClass + '"><span>过期: ' + escapeHtml(item.expiry_date) + (isExpired ? ' (已过期)' : '') + '</span></div>';
         if (item.manufacturer) html += '<div class="item-meta"><span>厂家: ' + escapeHtml(item.manufacturer) + '</span></div>';
         html += '<div class="item-owner">';
-        html += item.is_private ? '<span class="private-badge">私有</span>' : '<span class="shared-badge">组共享</span>';
+        html += item.is_private ? '<span class="private-badge">私有</span>' : '<span class="shared-badge">组共享' + (item.ownergroup_name ? '(' + escapeHtml(item.ownergroup_name) + ')' : '') + '</span>';
         html += ' ' + escapeHtml(item.created_by_name || '');
         html += '</div>';
         html += '<div class="item-actions" onclick="event.stopPropagation()">';
@@ -319,7 +319,7 @@ async function showItemDetail(itemId) {
     html += '<div class="detail-item"><div class="detail-label">用途</div><div class="detail-value">' + escapeHtml(item.usage_desc || '-') + '</div></div>';
     html += '<div class="detail-item"><div class="detail-label">生产日期</div><div class="detail-value">' + escapeHtml(item.production_date) + '</div></div>';
     html += '<div class="detail-item"><div class="detail-label">过期日期</div><div class="detail-value ' + (isExpired ? 'item-expired' : '') + '">' + escapeHtml(item.expiry_date) + (isExpired ? ' (已过期)' : '') + '</div></div>';
-    html += '<div class="detail-item"><div class="detail-label">归属</div><div class="detail-value">' + (item.is_private ? '私有' : '组共享') + '</div></div>';
+    html += '<div class="detail-item"><div class="detail-label">归属</div><div class="detail-value">' + (item.is_private ? '私有' : '组共享' + (item.ownergroup_name ? '(' + escapeHtml(item.ownergroup_name) + ')' : '')) + '</div></div>';
     html += '<div class="detail-item"><div class="detail-label">创建者</div><div class="detail-value">' + escapeHtml(item.created_by_name || '-') + '</div></div>';
     html += '</div>';
     document.getElementById('item-detail-content').innerHTML = html;
