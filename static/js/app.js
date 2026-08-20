@@ -9,6 +9,7 @@ let debounceTimer = null;
 let showingExpiring = false; // 是否正在查看即将过期物品
 let expiringItems = []; // 缓存即将过期物品
 let expiringDays = 30; // 默认30天
+let viewMode = 'grid'; // 'grid' 或 'list'
 
 // ===== API Helper =====
 async function api(method, path, data = null, isFormData = false) {
@@ -237,6 +238,24 @@ function deleteCategory(id) {
 }
 
 // ===== Items =====
+function toggleViewMode(mode) {
+    viewMode = mode;
+    const gridBtn = document.getElementById('view-grid-btn');
+    const listBtn = document.getElementById('view-list-btn');
+    if (mode === 'grid') {
+        gridBtn.classList.add('active');
+        listBtn.classList.remove('active');
+    } else {
+        listBtn.classList.add('active');
+        gridBtn.classList.remove('active');
+    }
+    if (showingExpiring) {
+        renderExpiringView();
+    } else {
+        loadItems();
+    }
+}
+
 async function loadItems() {
     const params = new URLSearchParams();
     params.set('page', currentPage);
@@ -261,10 +280,19 @@ function debounceLoadItems() {
 
 function renderItems(items) {
     const grid = document.getElementById('items-grid');
+    grid.className = viewMode === 'list' ? 'items-list' : 'items-grid';
     if (items.length === 0) {
         grid.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>暂无物品，点击右上角添加</p></div>';
         return;
     }
+    if (viewMode === 'list') {
+        renderItemList(items, grid);
+    } else {
+        renderItemGrid(items, grid);
+    }
+}
+
+function renderItemGrid(items, grid) {
     let html = '';
     items.forEach(item => {
         const isExpired = new Date(item.expiry_date) < new Date();
@@ -288,6 +316,22 @@ function renderItems(items) {
         html += '<button class="btn btn-edit" onclick="editItem(\'' + item.id + '\')">编辑</button>';
         html += '<button class="btn btn-delete" onclick="deleteItem(\'' + item.id + '\')">删除</button>';
         html += '</div>';
+        html += '</div>';
+    });
+    grid.innerHTML = html;
+}
+
+function renderItemList(items, grid) {
+    let html = '<div class="list-header"><span class="lh-name">物品名称</span><span class="lh-cat">分类</span><span class="lh-prod">生产日期</span><span class="lh-exp">过期日期</span><span class="lh-owner">归属</span><span class="lh-actions">操作</span></div>';
+    items.forEach(item => {
+        const isExpired = new Date(item.expiry_date) < new Date();
+        html += '<div class="list-row' + (isExpired ? ' row-expired' : '') + '" onclick="showItemDetail(\'' + item.id + '\')">';
+        html += '<span class="lr-name">' + escapeHtml(item.name) + '</span>';
+        html += '<span class="lr-cat"><span class="item-category">' + escapeHtml(item.category_name || '未分类') + '</span></span>';
+        html += '<span class="lr-prod">' + escapeHtml(item.production_date) + '</span>';
+        html += '<span class="lr-exp' + (isExpired ? ' item-expired' : '') + '">' + escapeHtml(item.expiry_date) + (isExpired ? ' (已过期)' : '') + '</span>';
+        html += '<span class="lr-owner">' + (item.is_private ? '<span class="private-badge">私有</span>' : '<span class="shared-badge">组共享</span>') + ' ' + escapeHtml(item.created_by_name || '') + '</span>';
+        html += '<span class="lr-actions" onclick="event.stopPropagation()"><button class="btn btn-edit" onclick="editItem(\'' + item.id + '\')">编辑</button> <button class="btn btn-delete" onclick="deleteItem(\'' + item.id + '\')">删除</button></span>';
         html += '</div>';
     });
     grid.innerHTML = html;
@@ -318,7 +362,11 @@ async function showItemDetail(itemId) {
     const item = res.item;
     const isExpired = new Date(item.expiry_date) < new Date();
     let html = '';
-    if (item.image_url) html += '<img class="detail-image" src="' + escapeHtml(item.image_url) + '" alt="">';
+    if (item.image_url) {
+        html += '<img class="detail-image" src="' + escapeHtml(item.image_url) + '" alt="">';
+    } else {
+        html += '<div class="detail-image-placeholder">📦</div>';
+    }
     html += '<div class="detail-grid">';
     html += '<div class="detail-item"><div class="detail-label">物品名称</div><div class="detail-value">' + escapeHtml(item.name) + '</div></div>';
     html += '<div class="detail-item"><div class="detail-label">分类</div><div class="detail-value">' + escapeHtml(item.category_name || '未分类') + '</div></div>';
@@ -369,6 +417,10 @@ async function editItem(itemId) {
         const preview = document.getElementById('item-image-preview');
         preview.src = item.image_url;
         preview.classList.remove('hidden');
+    } else {
+        const preview = document.getElementById('item-image-preview');
+        preview.src = '';
+        preview.classList.add('hidden');
     }
     const privateRadio = document.querySelector('input[name="item-private"][value="' + item.is_private + '"]');
     if (privateRadio) privateRadio.checked = true;
@@ -562,6 +614,7 @@ function renderExpiringView() {
     selectorEl.innerHTML = selHtml;
 
     const grid = document.getElementById('items-grid');
+    grid.className = viewMode === 'list' ? 'items-list' : 'items-grid';
     grid.innerHTML = ''; // 清空，不要用 +=
 
     if (expiringItems.length === 0) {
@@ -570,7 +623,15 @@ function renderExpiringView() {
         return;
     }
 
-    // Render items
+    if (viewMode === 'list') {
+        renderExpiringItemList(grid);
+    } else {
+        renderExpiringItemGrid(grid);
+    }
+    document.getElementById('pagination').innerHTML = '';
+}
+
+function renderExpiringItemGrid(grid) {
     let html = '';
     expiringItems.forEach(item => {
         const isExpired = item.days_left < 0;
@@ -607,7 +668,28 @@ function renderExpiringView() {
         html += '</div>';
     });
     grid.innerHTML = html;
-    document.getElementById('pagination').innerHTML = '';
+}
+
+function renderExpiringItemList(grid) {
+    let html = '<div class="list-header"><span class="lh-name">物品名称</span><span class="lh-cat">分类</span><span class="lh-exp">过期日期</span><span class="lh-days">剩余天数</span><span class="lh-owner">归属</span></div>';
+    expiringItems.forEach(item => {
+        const isExpired = item.days_left < 0;
+        const isToday = item.days_left === 0;
+        let daysText, badgeColor;
+        if (isExpired) { daysText = '已过期' + Math.abs(item.days_left) + '天'; badgeColor = '#999'; }
+        else if (isToday) { daysText = '今天过期'; badgeColor = '#e74c3c'; }
+        else if (item.days_left <= 3) { daysText = item.days_left + '天后过期'; badgeColor = '#e74c3c'; }
+        else { daysText = item.days_left + '天后过期'; badgeColor = '#f39c12'; }
+
+        html += '<div class="list-row' + (isExpired ? ' row-expired' : '') + '" onclick="showItemDetail(\'' + item.id + '\')">';
+        html += '<span class="lr-name">' + escapeHtml(item.name) + '</span>';
+        html += '<span class="lr-cat"><span class="item-category">' + escapeHtml(item.category_name || '未分类') + '</span></span>';
+        html += '<span class="lr-exp' + (isExpired ? ' item-expired' : '') + '">' + escapeHtml(item.expiry_date) + '</span>';
+        html += '<span class="lr-days" style="color:' + badgeColor + ';font-weight:600">⏰ ' + daysText + '</span>';
+        html += '<span class="lr-owner">' + (item.is_private ? '<span class="private-badge">私有</span>' : '<span class="shared-badge">组共享</span>') + ' ' + escapeHtml(item.created_by_name || '') + '</span>';
+        html += '</div>';
+    });
+    grid.innerHTML = html;
 }
 
 async function changeExpiringDays() {
