@@ -10,6 +10,7 @@ let showingExpiring = false; // 是否正在查看即将过期物品
 let expiringItems = []; // 缓存即将过期物品
 let expiringDays = 30; // 默认30天
 let viewMode = 'grid'; // 'grid' 或 'list'
+let showingRecycleBin = false; // 是否正在查看废物站
 
 // ===== API Helper =====
 async function api(method, path, data = null, isFormData = false) {
@@ -71,6 +72,7 @@ function showMainPage() {
     loadCategories();
     loadItems();
     loadExpiryAlerts();
+    loadRecycleBinCount();
 }
 
 function updateUserInfo() {
@@ -175,7 +177,9 @@ function selectCategory(catId) {
     currentCategory = catId;
     currentPage = 1;
     showingExpiring = false;
+    showingRecycleBin = false;
     document.getElementById('expiring-sidebar').classList.remove('active');
+    document.getElementById('recycle-sidebar').classList.remove('active');
     document.getElementById('expiring-days-selector').classList.add('hidden');
     renderCategories();
     loadItems();
@@ -454,12 +458,17 @@ async function handleItemSubmit(e) {
 }
 
 function deleteItem(itemId) {
-    document.getElementById('confirm-message').textContent = '确定要删除该物品吗？此操作不可恢复。';
+    document.getElementById('confirm-message').textContent = '确定要删除该物品吗？物品将移入废物站。';
     document.getElementById('confirm-btn').onclick = async () => {
         const res = await api('DELETE', '/items/' + itemId);
         if (res) {
-            showToast('物品删除成功', 'success');
-            loadItems();
+            showToast('物品已移入废物站', 'success');
+            if (showingRecycleBin) {
+                loadRecycleBin();
+            } else {
+                loadItems();
+            }
+            loadExpiryAlerts();
         }
         closeModal('confirm-modal');
     };
@@ -594,6 +603,8 @@ function showExpiringItems() {
         return;
     }
     showingExpiring = true;
+    showingRecycleBin = false;
+    document.getElementById('recycle-sidebar').classList.remove('active');
     sidebarEl.classList.add('active');
     document.getElementById('expiry-alert').classList.add('hidden');
     renderExpiringView();
@@ -706,6 +717,114 @@ async function changeExpiringDays() {
         }
     }
     renderExpiringView();
+}
+
+// ===== Recycle Bin =====
+let recycleItems = [];
+
+async function loadRecycleBinCount() {
+    const res = await api('GET', '/recycle-bin');
+    const countEl = document.getElementById('recycle-count-text');
+    if (res && res.items && res.items.length > 0) {
+        countEl.innerHTML = '废物站 <span class="recycle-badge">' + res.items.length + '</span>';
+    } else {
+        countEl.innerHTML = '废物站';
+    }
+}
+
+async function loadRecycleBin() {
+    const res = await api('GET', '/recycle-bin');
+    if (res) {
+        recycleItems = res.items || [];
+        renderRecycleBinView();
+    }
+}
+
+function showRecycleBin() {
+    const sidebarEl = document.getElementById('recycle-sidebar');
+    if (showingRecycleBin) {
+        showingRecycleBin = false;
+        sidebarEl.classList.remove('active');
+        document.getElementById('content-title').textContent = '全部物品';
+        document.getElementById('expiry-alert').classList.remove('hidden');
+        loadItems();
+        return;
+    }
+    showingRecycleBin = true;
+    showingExpiring = false;
+    document.getElementById('expiring-sidebar').classList.remove('active');
+    document.getElementById('expiring-days-selector').classList.add('hidden');
+    document.getElementById('expiry-alert').classList.add('hidden');
+    sidebarEl.classList.add('active');
+    loadRecycleBin();
+}
+
+function renderRecycleBinView() {
+    document.getElementById('content-title').textContent = '🗑️ 废物站';
+    const grid = document.getElementById('items-grid');
+    grid.className = 'items-list';
+    document.getElementById('pagination').innerHTML = '';
+
+    if (recycleItems.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><div class="empty-icon">🗑️</div><p>废物站为空</p></div>';
+        return;
+    }
+
+    let html = '<div class="recycle-actions"><button class="btn btn-delete-perm" onclick="emptyRecycleBin()">🗑️ 清空废物站</button></div>';
+    html += '<div class="list-header"><span class="lh-name">物品名称</span><span class="lh-cat">分类</span><span class="lh-exp">过期日期</span><span class="lh-deleted">删除时间</span><span class="lh-owner">归属</span><span class="lh-actions">操作</span></div>';
+    recycleItems.forEach(item => {
+        const isExpired = new Date(item.expiry_date) < new Date();
+        html += '<div class="list-row' + (isExpired ? ' row-expired' : '') + '">';
+        html += '<span class="lr-name">' + escapeHtml(item.name) + '</span>';
+        html += '<span class="lr-cat"><span class="item-category">' + escapeHtml(item.category_name || '未分类') + '</span></span>';
+        html += '<span class="lr-exp' + (isExpired ? ' item-expired' : '') + '">' + escapeHtml(item.expiry_date) + '</span>';
+        html += '<span class="lr-deleted">' + escapeHtml(item.deleted_at ? item.deleted_at.substring(0, 19).replace('T', ' ') : '') + '</span>';
+        html += '<span class="lr-owner">' + (item.is_private ? '<span class="private-badge">私有</span>' : '<span class="shared-badge">组共享</span>') + '</span>';
+        html += '<span class="lr-actions">';
+        html += '<button class="btn btn-restore" onclick="restoreItem(\'' + item.id + '\')">恢复</button> ';
+        html += '<button class="btn btn-delete-perm" onclick="permanentDeleteItem(\'' + item.id + '\')">永久删除</button>';
+        html += '</span>';
+        html += '</div>';
+    });
+    grid.innerHTML = html;
+}
+
+async function restoreItem(itemId) {
+    const res = await api('PUT', '/recycle-bin/' + itemId + '/restore');
+    if (res) {
+        showToast('物品已恢复', 'success');
+        loadRecycleBin();
+        loadRecycleBinCount();
+        loadExpiryAlerts();
+    }
+}
+
+async function permanentDeleteItem(itemId) {
+    document.getElementById('confirm-message').textContent = '确定要永久删除该物品吗？此操作不可恢复！';
+    document.getElementById('confirm-btn').onclick = async () => {
+        const res = await api('DELETE', '/recycle-bin/' + itemId);
+        if (res) {
+            showToast('物品已永久删除', 'success');
+            loadRecycleBin();
+            loadRecycleBinCount();
+        }
+        closeModal('confirm-modal');
+    };
+    openModal('confirm-modal');
+}
+
+async function emptyRecycleBin() {
+    document.getElementById('confirm-message').textContent = '确定要清空废物站吗？所有物品将被永久删除，不可恢复！';
+    document.getElementById('confirm-btn').onclick = async () => {
+        const res = await api('DELETE', '/recycle-bin');
+        if (res) {
+            showToast('废物站已清空', 'success');
+            loadRecycleBin();
+            loadRecycleBinCount();
+        }
+        closeModal('confirm-modal');
+    };
+    openModal('confirm-modal');
 }
 
 // ===== Utility =====

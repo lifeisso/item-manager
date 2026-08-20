@@ -121,6 +121,9 @@ func Migrate() error {
 	// Migrate: add ownergroup_id column if not exists (upgrade from old schema without this column)
 	Pool.Exec(ctx, `ALTER TABLE items ADD COLUMN IF NOT EXISTS ownergroup_id UUID REFERENCES users(id) ON DELETE SET NULL`)
 
+	// Migrate: add deleted_at column for recycle bin (soft delete)
+	Pool.Exec(ctx, `ALTER TABLE items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE`)
+
 	// Migrate: update existing data - set ownergroup_id based on is_private and owner
 	// For shared items (is_private=false), set ownergroup_id = owner_id (old model: owner_id was group id)
 	// For private items (is_private=true), set ownergroup_id = NULL
@@ -135,6 +138,7 @@ func Migrate() error {
 		"CREATE INDEX IF NOT EXISTS idx_items_ownergroup_id ON items(ownergroup_id)",
 		"CREATE INDEX IF NOT EXISTS idx_items_created_by ON items(created_by)",
 		"CREATE INDEX IF NOT EXISTS idx_items_category_id ON items(category_id)",
+		"CREATE INDEX IF NOT EXISTS idx_items_deleted_at ON items(deleted_at)",
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)",
 	}
 

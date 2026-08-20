@@ -156,7 +156,7 @@ func GetItems(c *gin.Context) {
 		LEFT JOIN categories c ON i.category_id = c.id
 		LEFT JOIN users u ON i.created_by = u.id
 		LEFT JOIN users g ON i.ownergroup_id = g.id
-		WHERE `
+		WHERE i.deleted_at IS NULL AND `
 
 	var args []interface{}
 	argIdx := 1
@@ -224,7 +224,7 @@ func GetItems(c *gin.Context) {
 	}
 
 	// Count total - reuse the same WHERE logic
-	countQuery := `SELECT COUNT(*) FROM items i LEFT JOIN categories c ON i.category_id = c.id LEFT JOIN users u ON i.created_by = u.id LEFT JOIN users g ON i.ownergroup_id = g.id WHERE `
+	countQuery := `SELECT COUNT(*) FROM items i LEFT JOIN categories c ON i.category_id = c.id LEFT JOIN users u ON i.created_by = u.id LEFT JOIN users g ON i.ownergroup_id = g.id WHERE i.deleted_at IS NULL AND `
 	countWhere := ""
 	countArgs := []interface{}{}
 	cargIdx := 1
@@ -476,7 +476,7 @@ func DeleteItem(c *gin.Context) {
 	var ownerID uuid.UUID
 	var ownergroupID *uuid.UUID
 	err := db.Pool.QueryRow(context.Background(),
-		`SELECT owner_id, ownergroup_id FROM items WHERE id = $1`, itemID,
+		`SELECT owner_id, ownergroup_id FROM items WHERE id = $1 AND deleted_at IS NULL`, itemID,
 	).Scan(&ownerID, &ownergroupID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "物品不存在"})
@@ -489,15 +489,16 @@ func DeleteItem(c *gin.Context) {
 		return
 	}
 
+	// Soft delete - move to recycle bin
 	_, err = db.Pool.Exec(context.Background(),
-		`DELETE FROM items WHERE id = $1`, itemID,
+		`UPDATE items SET deleted_at = NOW() WHERE id = $1`, itemID,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除物品失败"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "物品删除成功"})
+	c.JSON(http.StatusOK, gin.H{"message": "物品已移入废物站"})
 }
 
 // isItemAccessible checks if a user can access an item
@@ -548,6 +549,7 @@ func GetExpiringItems(c *gin.Context) {
 		LEFT JOIN users u ON i.created_by = u.id
 		LEFT JOIN users g ON i.ownergroup_id = g.id
 		WHERE i.expiry_date <= NOW() + INTERVAL '1 day' * $1
+		AND i.deleted_at IS NULL
 	`
 	var args []interface{}
 	args = append(args, days)
@@ -612,6 +614,183 @@ func GetExpiringItems(c *gin.Context) {
 		"items": items,
 		"days":  days,
 	})
+}
+
+// GetRecycleBin returns soft-deleted items for the current user
+func GetRecycleBin(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	groupID, _ := getGroupID(context.Background(), userID)
+
+	query := `
+		SELECT i.id, i.name, i.category_id, c.name as category_name,
+			i.manufacturer, i.usage_desc,
+			i.production_date::text, i.expiry_date::text,
+			i.image_url, i.owner_id, i.ownergroup_id, i.is_private, i.created_by,
+			u.username as created_by_name,
+			g.username as ownergroup_name,
+			i.deleted_at::text
+		FROM items i
+		LEFT JOIN categories c ON i.category_id = c.id
+		LEFT JOIN users u ON i.created_by = u.id
+		LEFT JOIN users g ON i.ownergroup_id = g.id
+		WHERE i.deleted_at IS NOT NULL AND `
+
+	var args []interface{}
+	argIdx := 1
+
+	if groupID != nil {
+		query += fmt.Sprintf("(i.owner_id = $%d OR i.ownergroup_id = $%d)", argIdx, argIdx+1)
+		args = append(args, userID, *groupID)
+	} else {
+		query += fmt.Sprintf("i.owner_id = $%d", argIdx)
+		args = append(args, userID)
+	}
+
+	query += " ORDER BY i.deleted_at DESC LIMIT 100"
+
+	rows, err := db.Pool.Query(context.Background(), query, args...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询废物站失败"})
+		return
+	}
+	defer rows.Close()
+
+	type RecycleBinItem struct {
+		ID             uuid.UUID  `json:"id"`
+		Name           string     `json:"name"`
+		CategoryID     *int       `json:"category_id"`
+		CategoryName   string     `json:"category_name"`
+		Manufacturer   string     `json:"manufacturer"`
+		UsageDesc      string     `json:"usage_desc"`
+		ProductionDate string     `json:"production_date"`
+		ExpiryDate     string     `json:"expiry_date"`
+		ImageURL       string     `json:"image_url"`
+		OwnerID        uuid.UUID  `json:"owner_id"`
+		OwnergroupID   *uuid.UUID `json:"ownergroup_id"`
+		IsPrivate      bool       `json:"is_private"`
+		CreatedBy      uuid.UUID  `json:"created_by"`
+		CreatedByName  string     `json:"created_by_name"`
+		OwnergroupName string     `json:"ownergroup_name"`
+		DeletedAt      string     `json:"deleted_at"`
+	}
+
+	var items []RecycleBinItem
+	for rows.Next() {
+		var item RecycleBinItem
+		var catName *string
+		var ownergroupName *string
+		if err := rows.Scan(
+			&item.ID, &item.Name, &item.CategoryID, &catName,
+			&item.Manufacturer, &item.UsageDesc,
+			&item.ProductionDate, &item.ExpiryDate,
+			&item.ImageURL, &item.OwnerID, &item.OwnergroupID, &item.IsPrivate, &item.CreatedBy,
+			&item.CreatedByName,
+			&ownergroupName,
+			&item.DeletedAt,
+		); err == nil {
+			if catName != nil {
+				item.CategoryName = *catName
+			}
+			if ownergroupName != nil {
+				item.OwnergroupName = *ownergroupName
+			}
+			items = append(items, item)
+		}
+	}
+
+	if items == nil {
+		items = []RecycleBinItem{}
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+// RestoreItem restores a soft-deleted item
+func RestoreItem(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	itemID := c.Param("id")
+
+	// Check item exists and is in recycle bin
+	var ownerID uuid.UUID
+	var ownergroupID *uuid.UUID
+	err := db.Pool.QueryRow(context.Background(),
+		`SELECT owner_id, ownergroup_id FROM items WHERE id = $1 AND deleted_at IS NOT NULL`, itemID,
+	).Scan(&ownerID, &ownergroupID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "废物站中不存在该物品"})
+		return
+	}
+
+	if !isItemAccessible(userID, ownerID, ownergroupID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权恢复该物品"})
+		return
+	}
+
+	_, err = db.Pool.Exec(context.Background(),
+		`UPDATE items SET deleted_at = NULL WHERE id = $1`, itemID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "恢复物品失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "物品已恢复"})
+}
+
+// PermanentDeleteItem permanently deletes an item from recycle bin
+func PermanentDeleteItem(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	itemID := c.Param("id")
+
+	// Check item exists and is in recycle bin
+	var ownerID uuid.UUID
+	var ownergroupID *uuid.UUID
+	err := db.Pool.QueryRow(context.Background(),
+		`SELECT owner_id, ownergroup_id FROM items WHERE id = $1 AND deleted_at IS NOT NULL`, itemID,
+	).Scan(&ownerID, &ownergroupID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "废物站中不存在该物品"})
+		return
+	}
+
+	if !isItemAccessible(userID, ownerID, ownergroupID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "无权删除该物品"})
+		return
+	}
+
+	_, err = db.Pool.Exec(context.Background(),
+		`DELETE FROM items WHERE id = $1`, itemID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "永久删除物品失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "物品已永久删除"})
+}
+
+// EmptyRecycleBin permanently deletes all items in recycle bin for the current user
+func EmptyRecycleBin(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	groupID, _ := getGroupID(context.Background(), userID)
+
+	var query string
+	var args []interface{}
+
+	if groupID != nil {
+		query = `DELETE FROM items WHERE deleted_at IS NOT NULL AND (owner_id = $1 OR ownergroup_id = $2)`
+		args = append(args, userID, *groupID)
+	} else {
+		query = `DELETE FROM items WHERE deleted_at IS NOT NULL AND owner_id = $1`
+		args = append(args, userID)
+	}
+
+	tag, err := db.Pool.Exec(context.Background(), query, args...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "清空废物站失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "废物站已清空", "deleted": tag.RowsAffected()})
 }
 
 // UploadImage handles image upload

@@ -95,6 +95,12 @@ func main() {
 			protected.PUT("/items/:id", handlers.UpdateItem)
 			protected.DELETE("/items/:id", handlers.DeleteItem)
 
+			// Recycle bin
+			protected.GET("/recycle-bin", handlers.GetRecycleBin)
+			protected.PUT("/recycle-bin/:id/restore", handlers.RestoreItem)
+			protected.DELETE("/recycle-bin/:id", handlers.PermanentDeleteItem)
+			protected.DELETE("/recycle-bin", handlers.EmptyRecycleBin)
+
 			// Image upload
 			protected.POST("/upload", handlers.UploadImage)
 		}
