@@ -71,6 +71,13 @@
                     <button class="btn btn-small btn-add" onclick="showAddCategoryModal()">+ 添加分类</button>
                 </div>
                 <div class="sidebar-section">
+                    <h3>即将过期</h3>
+                    <div id="expiring-sidebar" class="expiring-sidebar" onclick="showExpiringItems()">
+                        <span class="expiring-icon">⚠️</span>
+                        <span id="expiring-count-text">即将过期</span>
+                    </div>
+                </div>
+                <div class="sidebar-section">
                     <h3>物品筛选</h3>
                     <div class="filter-group">
                         <label>归属</label>
@@ -89,8 +96,13 @@
 
             <!-- 主内容区 -->
             <main class="content">
+                <!-- 过期提醒横幅 -->
+                <div id="expiry-alert" class="expiry-alert hidden"></div>
                 <div class="content-header">
-                    <h2 id="content-title">全部物品</h2>
+                    <div class="content-title-wrap">
+                        <h2 id="content-title">全部物品</h2>
+                        <span id="expiring-days-selector" class="hidden"></span>
+                    </div>
                     <button class="btn btn-primary" onclick="showAddItemModal()">+ 添加物品</button>
                 </div>
                 <div id="items-grid" class="items-grid">

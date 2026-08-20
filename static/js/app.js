@@ -6,6 +6,9 @@ let currentCategory = null; // null = all categories
 let currentPage = 1;
 let totalPages = 1;
 let debounceTimer = null;
+let showingExpiring = false; // 是否正在查看即将过期物品
+let expiringItems = []; // 缓存即将过期物品
+let expiringDays = 30; // 默认30天
 
 // ===== API Helper =====
 async function api(method, path, data = null, isFormData = false) {
@@ -66,6 +69,7 @@ function showMainPage() {
     updateUserInfo();
     loadCategories();
     loadItems();
+    loadExpiryAlerts();
 }
 
 function updateUserInfo() {
@@ -169,6 +173,9 @@ function renderCategories() {
 function selectCategory(catId) {
     currentCategory = catId;
     currentPage = 1;
+    showingExpiring = false;
+    document.getElementById('expiring-sidebar').classList.remove('active');
+    document.getElementById('expiring-days-selector').classList.add('hidden');
     renderCategories();
     loadItems();
     const cat = categories.find(c => c.id === catId);
@@ -485,6 +492,138 @@ function handleDeleteAccount() {
             showAuthPage();
         }
     });
+}
+
+// ===== Expiry Alerts =====
+async function loadExpiryAlerts() {
+    const res = await api('GET', '/items/expiring?days=' + expiringDays);
+    const alertEl = document.getElementById('expiry-alert');
+    const countEl = document.getElementById('expiring-count-text');
+
+    if (!res || !res.items || res.items.length === 0) {
+        alertEl.classList.add('hidden');
+        countEl.innerHTML = '暂无即将过期';
+        document.getElementById('expiring-sidebar').classList.remove('active');
+        expiringItems = [];
+        if (showingExpiring) { showingExpiring = false; loadItems(); }
+        return;
+    }
+
+        expiringItems = res.items;
+    // Update sidebar count
+    countEl.innerHTML = '即将过期 <span class="expiring-badge">' + res.items.length + '</span>';
+
+    // Update top alert banner - simple red text reminder
+    const expiredCount = res.items.filter(item => item.days_left < 0).length;
+    const expiringCount = res.items.filter(item => item.days_left >= 0).length;
+    let alertText = '⚠ 有';
+    if (expiredCount > 0) alertText += expiredCount + '件已过期';
+    if (expiredCount > 0 && expiringCount > 0) alertText += '、';
+    if (expiringCount > 0) alertText += expiringCount + '件即将过期';
+    alertText += '物品，点击左侧「即将过期」查看';
+
+    let html = '<button class="expiry-alert-close" onclick="document.getElementById(\'expiry-alert\').classList.add(\'hidden\')">&times;</button>';
+    html += '<div class="expiry-alert-simple" style="color:#e74c3c;font-size:16px;font-weight:700;">' + alertText + '</div>';
+    alertEl.innerHTML = html;
+    alertEl.classList.remove('hidden');
+}
+
+// Show expiring items in the main content area
+function showExpiringItems() {
+    const sidebarEl = document.getElementById('expiring-sidebar');
+    if (showingExpiring) {
+        // Toggle off - back to normal view
+        showingExpiring = false;
+        sidebarEl.classList.remove('active');
+        document.getElementById('content-title').textContent = '全部物品';
+        document.getElementById('expiring-days-selector').classList.add('hidden');
+        document.getElementById('expiry-alert').classList.remove('hidden');
+        loadItems();
+        return;
+    }
+    showingExpiring = true;
+    sidebarEl.classList.add('active');
+    document.getElementById('expiry-alert').classList.add('hidden');
+    renderExpiringView();
+}
+
+function renderExpiringView() {
+    document.getElementById('content-title').textContent = '⚠ 即将/已过期物品';
+
+    // Show days selector next to title
+    const selectorEl = document.getElementById('expiring-days-selector');
+    selectorEl.classList.remove('hidden');
+    let selHtml = '<label>查询范围：</label>';
+    selHtml += '<select id="expiring-days-select" onchange="changeExpiringDays()">';
+    [7, 15, 30, 60, 90, 180, 365].forEach(d => {
+        selHtml += '<option value="' + d + '"' + (expiringDays === d ? ' selected' : '') + '>' + d + '天</option>';
+    });
+    selHtml += '</select>';
+    selectorEl.innerHTML = selHtml;
+
+    const grid = document.getElementById('items-grid');
+    grid.innerHTML = ''; // 清空，不要用 +=
+
+    if (expiringItems.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><p>暂无即将过期物品</p></div>';
+        document.getElementById('pagination').innerHTML = '';
+        return;
+    }
+
+    // Render items
+    let html = '';
+    expiringItems.forEach(item => {
+        const isExpired = item.days_left < 0;
+        const isToday = item.days_left === 0;
+        let daysText, badgeColor, expClass;
+        if (isExpired) {
+            daysText = '已过期' + Math.abs(item.days_left) + '天';
+            badgeColor = '#999';
+            expClass = 'item-expired';
+        } else if (isToday) {
+            daysText = '今天过期';
+            badgeColor = '#e74c3c';
+            expClass = 'item-expiring-soon';
+        } else if (item.days_left <= 3) {
+            daysText = item.days_left + '天后过期';
+            badgeColor = '#e74c3c';
+            expClass = 'item-expiring-soon';
+        } else {
+            daysText = item.days_left + '天后过期';
+            badgeColor = '#f39c12';
+            expClass = '';
+        }
+
+        html += '<div class="item-card' + (isExpired ? ' card-expired' : '') + '" onclick="showItemDetail(\'' + item.id + '\')">';
+        html += '<div class="item-img-placeholder">📦</div>';
+        html += '<span class="item-category">' + escapeHtml(item.category_name || '未分类') + '</span>';
+        html += '<div class="item-name">' + escapeHtml(item.name) + '</div>';
+        html += '<div class="item-meta ' + expClass + '"><span style="color:' + badgeColor + ';font-weight:600">⏰ ' + daysText + '</span></div>';
+        html += '<div class="item-meta"><span>过期: ' + escapeHtml(item.expiry_date) + '</span></div>';
+        html += '<div class="item-owner">';
+        html += item.is_private ? '<span class="private-badge">私有</span>' : '<span class="shared-badge">组共享</span>';
+        html += ' ' + escapeHtml(item.created_by_name || '');
+        html += '</div>';
+        html += '</div>';
+    });
+    grid.innerHTML = html;
+    document.getElementById('pagination').innerHTML = '';
+}
+
+async function changeExpiringDays() {
+    expiringDays = parseInt(document.getElementById('expiring-days-select').value);
+    const res = await api('GET', '/items/expiring?days=' + expiringDays);
+    if (res && res.items) {
+        expiringItems = res.items;
+        // Update sidebar count
+        const countEl = document.getElementById('expiring-count-text');
+        if (res.items.length > 0) {
+            countEl.innerHTML = '即将过期 <span class="expiring-badge">' + res.items.length + '</span>';
+        } else {
+            countEl.innerHTML = '暂无即将过期';
+        }
+    }
+    renderExpiringView();
 }
 
 // ===== Utility =====

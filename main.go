@@ -89,6 +89,7 @@ func main() {
 
 			// Items
 			protected.GET("/items", handlers.GetItems)
+			protected.GET("/items/expiring", handlers.GetExpiringItems)
 			protected.POST("/items", handlers.CreateItem)
 			protected.GET("/items/:id", handlers.GetItem)
 			protected.PUT("/items/:id", handlers.UpdateItem)

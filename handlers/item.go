@@ -522,6 +522,98 @@ func isItemAccessible(userID uuid.UUID, ownerID uuid.UUID, ownergroupID *uuid.UU
 	return *userGroupID == *ownergroupID
 }
 
+// GetExpiringItems returns items expiring within N days (default 30), including already expired
+func GetExpiringItems(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+
+	days := 30
+	if d := c.Query("days"); d != "" {
+		if n, err := fmt.Sscanf(d, "%d", &days); err != nil || n != 1 || days < 1 || days > 365 {
+			days = 30
+		}
+	}
+
+	// Get user's group_id
+	groupID, _ := getGroupID(context.Background(), userID)
+
+	// Query items expiring within N days OR already expired (expiry_date <= NOW + N days)
+	// Includes items that have already passed their expiry date
+	query := `
+		SELECT i.id, i.name, c.name as category_name,
+			i.expiry_date::text, i.is_private,
+			u.username as created_by_name,
+			g.username as ownergroup_name
+		FROM items i
+		LEFT JOIN categories c ON i.category_id = c.id
+		LEFT JOIN users u ON i.created_by = u.id
+		LEFT JOIN users g ON i.ownergroup_id = g.id
+		WHERE i.expiry_date <= NOW() + INTERVAL '1 day' * $1
+	`
+	var args []interface{}
+	args = append(args, days)
+	argIdx := 2
+
+	if groupID != nil {
+		query += fmt.Sprintf(" AND (i.owner_id = $%d OR i.ownergroup_id = $%d)", argIdx, argIdx+1)
+		args = append(args, userID, *groupID)
+	} else {
+		query += fmt.Sprintf(" AND i.owner_id = $%d", argIdx)
+		args = append(args, userID)
+	}
+
+	query += " ORDER BY i.expiry_date ASC LIMIT 50"
+
+	rows, err := db.Pool.Query(context.Background(), query, args...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询过期物品失败"})
+		return
+	}
+	defer rows.Close()
+
+	type ExpiringItem struct {
+		ID             uuid.UUID `json:"id"`
+		Name           string    `json:"name"`
+		CategoryName   string    `json:"category_name"`
+		ExpiryDate     string    `json:"expiry_date"`
+		IsPrivate      bool      `json:"is_private"`
+		OwnergroupName string    `json:"ownergroup_name"`
+		CreatedByName  string    `json:"created_by_name"`
+		DaysLeft       int       `json:"days_left"`
+	}
+
+	items := []ExpiringItem{}
+	for rows.Next() {
+		var item ExpiringItem
+		var ownergroupName *string
+		var catName *string
+
+		if err := rows.Scan(
+			&item.ID, &item.Name, &catName,
+			&item.ExpiryDate, &item.IsPrivate,
+			&item.CreatedByName,
+			&ownergroupName,
+		); err == nil {
+			if catName != nil {
+				item.CategoryName = *catName
+			}
+			if ownergroupName != nil {
+				item.OwnergroupName = *ownergroupName
+			}
+			// Calculate days left (negative means already expired)
+			expDate, _ := time.Parse("2006-01-02", item.ExpiryDate)
+			now := time.Now()
+			daysLeft := int(expDate.Sub(now).Hours() / 24)
+			item.DaysLeft = daysLeft
+			items = append(items, item)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"items": items,
+		"days":  days,
+	})
+}
+
 // UploadImage handles image upload
 func UploadImage(c *gin.Context) {
 	file, err := c.FormFile("image")
