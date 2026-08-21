@@ -78,6 +78,15 @@ function showAuthPage() {
 async function showMainPage() {
     document.getElementById('auth-page').classList.add('hidden');
     document.getElementById('main-page').classList.remove('hidden');
+ 	//重置视图状态，确保每次登录默认显示"全部物品"页面
+    showingExpiring = false;
+    showingRecycleBin = false;
+    document.getElementById('expiring-sidebar').classList.remove('active');
+    document.getElementById('recycle-sidebar').classList.remove('active');
+    document.getElementById('expiring-days-selector').classList.add('hidden');
+    document.getElementById('expiry-alert').classList.remove('hidden');
+    document.getElementById('content-title').textContent = '全部物品';
+
     updateUserInfo();
     await loadExpiringDays(); // 等待从服务器加载用户独立的查询范围天数
     loadCategories();
