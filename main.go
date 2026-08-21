@@ -103,6 +103,10 @@ func main() {
 
 			// Image upload
 			protected.POST("/upload", handlers.UploadImage)
+
+			// User settings
+			protected.GET("/settings/expiring-days", handlers.GetExpiringDays)
+			protected.PUT("/settings/expiring-days", handlers.UpdateExpiringDays)
 		}
 	}
 

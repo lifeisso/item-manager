@@ -124,6 +124,9 @@ func Migrate() error {
 	// Migrate: add deleted_at column for recycle bin (soft delete)
 	Pool.Exec(ctx, `ALTER TABLE items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE`)
 
+	// Migrate: add expiring_days column to users table (per-user expiry query range, default 30)
+	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS expiring_days INTEGER DEFAULT 30`)
+
 	// Migrate: update existing data - set ownergroup_id based on is_private and owner
 	// For shared items (is_private=false), set ownergroup_id = owner_id (old model: owner_id was group id)
 	// For private items (is_private=true), set ownergroup_id = NULL

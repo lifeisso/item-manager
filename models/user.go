@@ -13,6 +13,7 @@ type User struct {
 	PasswordHash string     `json:"-"` // Never expose password hash
 	IsGroup      bool       `json:"is_group"`
 	GroupID      *uuid.UUID `json:"group_id,omitempty"`
+	ExpiringDays int        `json:"expiring_days"` // 每个用户独立的过期查询范围天数
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 }

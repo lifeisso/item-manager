@@ -8,7 +8,7 @@ let totalPages = 1;
 let debounceTimer = null;
 let showingExpiring = false; // 是否正在查看即将过期物品
 let expiringItems = []; // 缓存即将过期物品
-let expiringDays = 30; // 默认30天
+let expiringDays = 30; // 默认30天，实际值按用户从localStorage加载
 let viewMode = 'grid'; // 'grid' 或 'list'
 let showingRecycleBin = false; // 是否正在查看废物站
 
@@ -28,7 +28,6 @@ async function api(method, path, data = null, isFormData = false) {
     }
     try {
         const res = await fetch('/api' + path, opts);
-        const json = await res.json();
         if (res.status === 401) {
             token = '';
             currentUser = null;
@@ -38,6 +37,17 @@ async function api(method, path, data = null, isFormData = false) {
             showToast('登录已过期，请重新登录', 'error');
             return null;
         }
+        // 先检查响应类型，避免解析非JSON响应报错
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            if (!res.ok) {
+                showToast('请求失败: ' + res.status + ' ' + res.statusText, 'error');
+            } else {
+                showToast('服务器返回了非JSON响应', 'error');
+            }
+            return null;
+        }
+        const json = await res.json();
         if (!res.ok) {
             showToast(json.error || '操作失败', 'error');
             return null;
@@ -65,10 +75,11 @@ function showAuthPage() {
     document.getElementById('main-page').classList.add('hidden');
 }
 
-function showMainPage() {
+async function showMainPage() {
     document.getElementById('auth-page').classList.add('hidden');
     document.getElementById('main-page').classList.remove('hidden');
     updateUserInfo();
+    await loadExpiringDays(); // 等待从服务器加载用户独立的查询范围天数
     loadCategories();
     loadItems();
     loadExpiryAlerts();
@@ -134,6 +145,7 @@ async function handleLogout() {
     await api('POST', '/auth/logout');
     token = '';
     currentUser = null;
+    expiringDays = 30; // 重置为默认值，避免影响下一个账号
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     showAuthPage();
@@ -547,6 +559,7 @@ function handleDeleteAccount() {
             showToast('账号已注销', 'success');
             token = '';
             currentUser = null;
+            expiringDays = 30;
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             closeModal('delete-account-modal');
@@ -705,6 +718,7 @@ function renderExpiringItemList(grid) {
 
 async function changeExpiringDays() {
     expiringDays = parseInt(document.getElementById('expiring-days-select').value);
+    await saveExpiringDays(); // 保存该用户的天数设置
     const res = await api('GET', '/items/expiring?days=' + expiringDays);
     if (res && res.items) {
         expiringItems = res.items;
@@ -825,6 +839,49 @@ async function emptyRecycleBin() {
         closeModal('confirm-modal');
     };
     openModal('confirm-modal');
+}
+
+// ===== User-specific Settings =====
+function getExpiringDaysKey() {
+    if (!currentUser || !currentUser.id) return null;
+    return 'expiringDays_' + currentUser.id;
+}
+
+async function loadExpiringDays() {
+    // 优先从服务器加载，localStorage 作为离线缓存
+    const key = getExpiringDaysKey();
+    const res = await api('GET', '/settings/expiring-days');
+    if (res && typeof res.expiring_days === 'number' && res.expiring_days > 0) {
+        expiringDays = res.expiring_days;
+        if (key) localStorage.setItem(key, expiringDays.toString());
+        return;
+    }
+    // 回退到 localStorage 缓存
+    if (key) {
+        const saved = localStorage.getItem(key);
+        if (saved !== null) {
+            expiringDays = parseInt(saved);
+        } else {
+            expiringDays = 30;
+        }
+    } else {
+        // currentUser 未设置时，重置为默认值
+        expiringDays = 30;
+    }
+}
+
+async function saveExpiringDays() {
+    // 同时保存到服务器和 localStorage
+    const key = getExpiringDaysKey();
+    if (key) {
+        localStorage.setItem(key, expiringDays.toString());
+    }
+    try {
+        await api('PUT', '/settings/expiring-days', { expiring_days: expiringDays });
+    } catch (e) {
+        // 服务器保存失败不影响本地使用，localStorage已保存
+        console.warn('保存到服务器失败，已使用本地缓存:', e);
+    }
 }
 
 // ===== Utility =====

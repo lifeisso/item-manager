@@ -63,16 +63,15 @@ func JoinGroup(c *gin.Context) {
 		return
 	}
 
-	 // Update items: set ownergroup_id for shared items (is_private=false) that have no group^M
+	// Update items: set ownergroup_id for shared items (is_private=false) that have no group
 	_, err = db.Pool.Exec(context.Background(),
-			`UPDATE items SET ownergroup_id = $1 WHERE owner_id = $2 AND is_private = false AND ownergroup_id IS NULL`,
-			groupID, userID,
+		`UPDATE items SET ownergroup_id = $1 WHERE owner_id = $2 AND is_private = false AND ownergroup_id IS NULL`,
+		groupID, userID,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新物品归属组失败"})
 		return
 	}
-
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "加入组成功",
@@ -110,15 +109,15 @@ func LeaveGroup(c *gin.Context) {
 		return
 	}
 
-    // Update items: clear ownergroup_id for items that belonged to this group
-    _, err = db.Pool.Exec(context.Background(),
-             `UPDATE items SET ownergroup_id = NULL WHERE owner_id = $1 AND ownergroup_id = $2`,
-             userID, *groupID,
+	// Update items: clear ownergroup_id for items that belonged to this group
+	_, err = db.Pool.Exec(context.Background(),
+		`UPDATE items SET ownergroup_id = NULL WHERE owner_id = $1 AND ownergroup_id = $2`,
+		userID, *groupID,
 	)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "更新物品归属组失败"})
-        return
-    }
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新物品归属组失败"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "退出组成功"})
 }
