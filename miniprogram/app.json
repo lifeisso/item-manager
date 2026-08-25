@@ -1,0 +1,56 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/expiring/expiring",
+    "pages/maintenance/maintenance",
+    "pages/profile/profile",
+    "pages/login/login",
+    "pages/item-edit/item-edit",
+    "pages/item-detail/item-detail",
+    "pages/recycle/recycle",
+    "pages/maint-detail/maint-detail",
+    "pages/maint-plan-edit/maint-plan-edit",
+    "pages/maint-item-edit/maint-item-edit",
+    "pages/maint-records/maint-records",
+    "pages/suggestion/suggestion"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#667eea",
+    "navigationBarTitleText": "拾物",
+    "navigationBarTextStyle": "white"
+  },
+  "tabBar": {
+    "color": "#999",
+    "selectedColor": "#667eea",
+    "backgroundColor": "#fff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "物品",
+        "iconPath": "images/tab-item.png",
+        "selectedIconPath": "images/tab-item-active.png"
+      },
+      {
+        "pagePath": "pages/expiring/expiring",
+        "text": "过期",
+        "iconPath": "images/tab-expiring.png",
+        "selectedIconPath": "images/tab-expiring-active.png"
+      },
+      {
+        "pagePath": "pages/maintenance/maintenance",
+        "text": "保养",
+        "iconPath": "images/tab-maint.png",
+        "selectedIconPath": "images/tab-maint-active.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "images/tab-profile.png",
+        "selectedIconPath": "images/tab-profile-active.png"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

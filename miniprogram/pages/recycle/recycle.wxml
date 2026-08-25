@@ -1,0 +1,26 @@
+<view class="container">
+  <!-- 清空按钮 -->
+  <view class="clear-bar" wx:if="{{items.length > 0}}">
+    <text class="recycle-count">共{{items.length}}个物品</text>
+    <button class="btn-danger btn-small" bindtap="handleClearAll">清空废物站</button>
+  </view>
+
+  <!-- 废物站列表 -->
+  <view wx:if="{{items.length > 0}}">
+    <view class="card recycle-card" wx:for="{{items}}" wx:key="id">
+      <view class="recycle-info">
+        <text class="recycle-name">{{item.name}}</text>
+        <text class="recycle-meta">{{item.category_name || '未分类'}} · {{item.manufacturer || '无厂家'}}</text>
+      </view>
+      <view class="recycle-actions">
+        <button class="btn-primary btn-small" data-id="{{item.id}}" bindtap="handleRestore">恢复</button>
+        <button class="btn-danger btn-small" data-id="{{item.id}}" bindtap="handlePermanentDelete">永久删除</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:else>
+    <text class="empty-icon">🗑️</text>
+    <text>废物站为空</text>
+  </view>
+</view>

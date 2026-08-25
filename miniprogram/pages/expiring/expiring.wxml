@@ -1,0 +1,35 @@
+<view class="container">
+  <!-- 天数选择器 -->
+  <view class="card days-selector">
+    <text class="form-label">查询范围</text>
+    <picker mode="selector" range="{{daysOptions}}" value="{{daysIndex}}" bindchange="onDaysChange">
+      <view class="days-picker">
+        <text class="days-value">{{days}}天内</text>
+        <text class="picker-arrow">▼</text>
+      </view>
+    </picker>
+  </view>
+
+  <!-- 过期物品列表 -->
+  <view wx:if="{{items.length > 0}}">
+    <view class="card expiring-card" wx:for="{{items}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <view class="expiring-header">
+        <text class="expiring-name">{{item.name}}</text>
+        <text class="badge {{item.is_expired ? 'badge-danger' : 'badge-warning'}}">
+          {{item.is_expired ? '已过期' : '即将过期'}}
+        </text>
+      </view>
+      <view class="expiring-info">
+        <text class="expiring-meta">{{item.category_name || '未分类'}} · {{item.manufacturer || '无厂家'}}</text>
+        <text class="expiring-date {{item.is_expired ? 'text-danger' : 'text-warning'}}">
+          过期日期: {{item.expiry_date}}
+        </text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:else>
+    <text class="empty-icon">✅</text>
+    <text>{{days}}天内没有即将过期的物品</text>
+  </view>
+</view>

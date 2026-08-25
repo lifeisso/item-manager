@@ -1,0 +1,51 @@
+<view class="container">
+  <!-- 用户信息 -->
+  <view class="card profile-card">
+    <view class="avatar-wrap">
+      <text class="avatar-text">{{user && user.username ? user.username[0] : '?'}}</text>
+    </view>
+    <view class="user-info">
+      <text class="username">{{user ? user.username : '未登录'}}</text>
+      <text class="user-meta" wx:if="{{user && user.is_group}}">组账号</text>
+      <text class="user-meta" wx:elif="{{user && !user.is_group}}">个人账号</text>
+      <text class="user-meta" wx:if="{{user && user.group_name}}">已加入组：{{user.group_name}}</text>
+    </view>
+  </view>
+
+  <!-- 设置 -->
+  <view class="card">
+    <view class="setting-item">
+      <text class="setting-label">过期查询范围</text>
+      <picker mode="selector" range="{{daysOptions}}" value="{{daysIndex}}" bindchange="onDaysChange">
+        <view class="setting-value-wrap">
+          <text class="setting-value">{{expiringDays}}天</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+    <view class="setting-item" bindtap="goRecycle">
+      <text class="setting-label">废物站</text>
+      <text class="setting-arrow">›</text>
+    </view>
+    <view class="setting-item" bindtap="goSuggestion">
+      <text class="setting-label">📮 意见箱</text>
+      <text class="setting-arrow">›</text>
+    </view>
+  </view>
+
+  <!-- 操作 -->
+  <view class="card">
+    <view class="setting-item" bindtap="handleJoinGroup">
+      <text class="setting-label">{{user && user.group_name ? '所属组：' + user.group_name : '加入组'}}</text>
+      <text class="setting-arrow">›</text>
+    </view>
+    <view class="setting-item" bindtap="handleLogout">
+      <text class="setting-label text-danger">退出登录</text>
+      <text class="setting-arrow">›</text>
+    </view>
+    <view class="setting-item" bindtap="handleDeleteAccount">
+      <text class="setting-label text-danger">注销账号</text>
+      <text class="setting-arrow">›</text>
+    </view>
+  </view>
+</view>

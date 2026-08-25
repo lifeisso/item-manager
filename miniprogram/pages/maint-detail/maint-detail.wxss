@@ -1,0 +1,148 @@
+.plan-info {
+  padding: 24rpx;
+}
+
+.plan-header {
+  display: flex;
+  align-items: flex-start;
+}
+
+.plan-icon {
+  font-size: 48rpx;
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+
+.plan-title-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-name {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+.plan-desc {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 4rpx;
+}
+
+.item-card {
+  padding: 20rpx 24rpx;
+}
+
+.item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.item-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.item-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8rpx;
+}
+
+.item-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 6rpx;
+}
+
+.item-cycle {
+  font-size: 24rpx;
+  color: #666;
+}
+
+.badge-success {
+  background: #e8f8ef;
+  color: #27ae60;
+}
+
+.item-last {
+  font-size: 22rpx;
+  color: #999;
+}
+
+.done-btn {
+  width: 72rpx;
+  height: 72rpx;
+  background: #667eea;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 36rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  line-height: 72rpx;
+  flex-shrink: 0;
+  margin-left: 16rpx;
+}
+
+.done-btn::after {
+  border: none;
+}
+
+.item-actions {
+  display: flex;
+  gap: 24rpx;
+  margin-top: 12rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx solid #f0f0f0;
+}
+
+.action-text {
+  font-size: 26rpx;
+  color: #667eea;
+}
+
+.text-danger {
+  color: #e74c3c;
+}
+
+.fab {
+  position: fixed;
+  bottom: 60rpx;
+  right: 40rpx;
+  width: 100rpx;
+  height: 100rpx;
+  background: #667eea;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  box-shadow: 0 4rpx 16rpx rgba(102, 126, 234, 0.4);
+}
+
+.records-fab {
+  position: fixed;
+  bottom: 60rpx;
+  right: 160rpx;
+  width: 100rpx;
+  height: 100rpx;
+  background: #6c757d;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  box-shadow: 0 4rpx 16rpx rgba(108, 117, 125, 0.4);
+}

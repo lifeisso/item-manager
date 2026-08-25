@@ -1,0 +1,42 @@
+<view class="container">
+  <!-- 提交意见 -->
+  <view class="card submit-card">
+    <textarea class="suggestion-input" placeholder="请输入您的意见或建议..." value="{{content}}" bindinput="onContentInput" maxlength="2000" />
+    <view class="file-section">
+      <view class="file-info" wx:if="{{fileName}}">
+        <text class="file-icon">📎</text>
+        <text class="file-name">{{fileName}}</text>
+        <text class="file-size" wx:if="{{fileSizeStr}}">({{fileSizeStr}})</text>
+        <text class="file-remove" bindtap="removeFile">✕</text>
+      </view>
+      <view class="file-btn" bindtap="chooseFile" wx:else>
+        <text>📎 添加附件（最大50MB）</text>
+      </view>
+    </view>
+    <button class="submit-btn" bindtap="handleSubmit" disabled="{{submitting}}">
+      {{submitting ? '提交中...' : '提交意见'}}
+    </button>
+  </view>
+
+  <!-- 意见列表 -->
+  <view class="section-title" wx:if="{{suggestions.length > 0}}">我的意见</view>
+  <view wx:if="{{suggestions.length > 0}}">
+    <view class="card suggestion-card" wx:for="{{suggestions}}" wx:key="id">
+      <view class="suggestion-content">{{item.content}}</view>
+      <view class="suggestion-file" wx:if="{{item.file_name}}">
+        <text class="file-icon">📎</text>
+        <text class="file-name" bindtap="downloadFile" data-id="{{item.id}}" data-name="{{item.file_name}}">{{item.file_name}}</text>
+        <text class="file-size" wx:if="{{item.file_size}}">({{item.file_size > 1048576 ? (item.file_size / 1048576).toFixed(1) + 'MB' : (item.file_size / 1024).toFixed(0) + 'KB'}})</text>
+      </view>
+      <view class="suggestion-meta">
+        <text class="suggestion-time">{{item.created_at_str}}</text>
+        <text class="suggestion-del" data-id="{{item.id}}" bindtap="handleDelete">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:elif="{{loaded}}">
+    <text class="empty-icon">📮</text>
+    <text>暂无意见</text>
+  </view>
+</view>

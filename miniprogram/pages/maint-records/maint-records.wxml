@@ -1,0 +1,23 @@
+<view class="container">
+  <view class="records-header">
+    <text class="records-title">{{planName}} - 保养记录</text>
+    <text class="records-count">共 {{records.length}} 条</text>
+  </view>
+
+  <view wx:if="{{records.length > 0}}">
+    <view class="card record-card" wx:for="{{records}}" wx:key="id">
+      <view class="record-info">
+        <text class="record-name">{{item.item_name}}</text>
+        <text class="record-date">完成日期: {{item.done_date}}</text>
+      </view>
+      <view class="record-action" data-id="{{item.id}}" data-name="{{item.item_name}}" bindtap="handleDelete">
+        <text class="delete-text">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:else>
+    <text class="empty-icon">📋</text>
+    <text>暂无保养记录</text>
+  </view>
+</view>

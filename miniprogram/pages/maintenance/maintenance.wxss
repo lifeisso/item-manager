@@ -1,0 +1,117 @@
+.alert-banner {
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, #eef0ff, #dde1ff);
+  border: 1rpx solid #667eea;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.alert-icon {
+  font-size: 32rpx;
+  margin-right: 12rpx;
+}
+
+.alert-text {
+  font-size: 26rpx;
+  color: #667eea;
+}
+
+.plan-card {
+  padding: 24rpx;
+}
+
+.plan-header {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 16rpx;
+}
+
+.plan-icon {
+  font-size: 48rpx;
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+
+.plan-title-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-name {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4rpx;
+}
+
+.plan-desc {
+  font-size: 24rpx;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1rpx solid #f0f0f0;
+  padding-top: 16rpx;
+}
+
+.plan-stats {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+
+.plan-due {
+  font-size: 24rpx;
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+.plan-total {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.plan-next {
+  font-size: 22rpx;
+  color: #667eea;
+}
+
+.plan-actions {
+  display: flex;
+  gap: 20rpx;
+}
+
+.action-text {
+  font-size: 26rpx;
+  color: #667eea;
+}
+
+.text-danger {
+  color: #e74c3c;
+}
+
+.fab {
+  position: fixed;
+  bottom: 120rpx;
+  right: 40rpx;
+  width: 100rpx;
+  height: 100rpx;
+  background: #667eea;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  box-shadow: 0 4rpx 16rpx rgba(102, 126, 234, 0.4);
+}

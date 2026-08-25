@@ -1,0 +1,73 @@
+<view class="container">
+  <view class="card">
+    <!-- 图片上传 -->
+    <view class="form-group">
+      <text class="form-label">图片</text>
+      <view class="image-upload">
+        <image wx:if="{{image_url}}" class="preview-img" src="{{image_url}}" mode="aspectFill" bindtap="chooseImage" />
+        <view wx:else class="upload-placeholder" bindtap="chooseImage">
+          <text class="upload-icon">+</text>
+          <text class="upload-text">上传图片</text>
+        </view>
+        <view wx:if="{{image_url}}" class="remove-img" bindtap="removeImage">×</view>
+      </view>
+    </view>
+
+    <!-- 名称 -->
+    <view class="form-group">
+      <text class="form-label">名称 *</text>
+      <input class="form-input" value="{{name}}" bindinput="onName" placeholder="请输入物品名称" />
+    </view>
+
+    <!-- 分类 -->
+    <view class="form-group">
+      <text class="form-label">分类 *</text>
+      <picker mode="selector" range="{{categories}}" range-key="name" value="{{categoryIndex}}" bindchange="onCategoryChange">
+        <view class="form-input picker-input">
+          {{categoryIndex >= 0 && categories[categoryIndex] ? categories[categoryIndex].name : '请选择分类'}}
+        </view>
+      </picker>
+    </view>
+
+    <!-- 厂家 -->
+    <view class="form-group">
+      <text class="form-label">厂家</text>
+      <input class="form-input" value="{{manufacturer}}" bindinput="onManufacturer" placeholder="请输入厂家" />
+    </view>
+
+    <!-- 用途 -->
+    <view class="form-group">
+      <text class="form-label">用途</text>
+      <textarea class="form-input form-textarea" value="{{usage_desc}}" bindinput="onUsage" placeholder="请输入用途描述" auto-height />
+    </view>
+
+    <!-- 生产日期 -->
+    <view class="form-group">
+      <text class="form-label">生产日期</text>
+      <picker mode="date" value="{{production_date}}" bindchange="onProdDate">
+        <view class="form-input picker-input">{{production_date || '请选择日期'}}</view>
+      </picker>
+    </view>
+
+    <!-- 过期日期 -->
+    <view class="form-group">
+      <text class="form-label">过期日期</text>
+      <picker mode="date" value="{{expiry_date}}" bindchange="onExpDate">
+        <view class="form-input picker-input">{{expiry_date || '请选择日期'}}</view>
+      </picker>
+    </view>
+
+    <!-- 归属 -->
+    <view class="form-group">
+      <text class="form-label">归属</text>
+      <view class="radio-group">
+        <label class="radio-item">
+          <switch checked="{{is_private}}" bindchange="onPrivateChange" color="#667eea" />
+          <text>{{is_private ? '个人物品' : '组共享'}}</text>
+        </label>
+      </view>
+    </view>
+  </view>
+
+  <button class="btn-primary submit-btn" bindtap="handleSubmit">{{isEdit ? '保存修改' : '添加物品'}}</button>
+</view>

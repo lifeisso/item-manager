@@ -1,0 +1,46 @@
+<view class="container">
+  <!-- 计划信息 -->
+  <view class="card plan-info" wx:if="{{plan}}">
+    <view class="plan-header">
+      <text class="plan-icon">{{plan.icon || '🔧'}}</text>
+      <view class="plan-title-wrap">
+        <text class="plan-name">{{plan.name}}</text>
+        <text class="plan-desc" wx:if="{{plan.description}}">{{plan.description}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 保养项列表 -->
+  <view wx:if="{{items.length > 0}}">
+    <view class="card item-card" wx:for="{{items}}" wx:key="id">
+      <view class="item-top">
+        <view class="item-left">
+          <text class="item-name">{{item.name}}</text>
+          <view class="item-meta-row">
+            <text class="item-cycle">周期: {{item.cycle_days}}天</text>
+            <text class="badge {{item.is_overdue ? 'badge-danger' : (item.days_until_due <= 7 ? 'badge-warning' : 'badge-success')}}">
+              {{item.is_overdue ? '已逾期' : (item.days_until_due !== undefined ? item.days_until_due + '天后' : '正常')}}
+            </text>
+          </view>
+          <text class="item-last">上次完成: {{item.last_done_date || '未完成'}}</text>
+        </view>
+        <button class="done-btn" data-id="{{item.id}}" bindtap="handleDone">✓</button>
+      </view>
+      <view class="item-actions">
+        <text class="action-text" data-id="{{item.id}}" bindtap="goEditItem">编辑</text>
+        <text class="action-text text-danger" data-id="{{item.id}}" bindtap="handleDeleteItem">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:else>
+    <text class="empty-icon">📋</text>
+    <text>暂无保养项</text>
+  </view>
+
+  <!-- 添加按钮 -->
+  <view class="fab" bindtap="goAddItem">+</view>
+
+  <!-- 查看记录按钮 -->
+  <view class="records-fab" bindtap="goRecords">📋</view>
+</view>

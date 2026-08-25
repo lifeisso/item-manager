@@ -1,0 +1,119 @@
+.alert-banner {
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, #fff3cd, #ffe082);
+  border: 1rpx solid #ffc107;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.alert-icon { font-size: 32rpx; margin-right: 12rpx; }
+.alert-text { font-size: 26rpx; color: #856404; }
+
+.category-bar {
+  white-space: nowrap;
+  margin-bottom: 20rpx;
+  padding-bottom: 10rpx;
+}
+
+.cat-item {
+  display: inline-block;
+  padding: 10rpx 24rpx;
+  margin-right: 12rpx;
+  border-radius: 30rpx;
+  font-size: 26rpx;
+  background: #fff;
+  color: #666;
+  border: 1rpx solid #e0e0e0;
+}
+
+.cat-item.active {
+  background: #667eea;
+  color: #fff;
+  border-color: #667eea;
+}
+
+.item-list { margin-bottom: 20rpx; }
+
+.item-card {
+  display: flex;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
+}
+
+.item-img {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 12rpx;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+}
+
+.item-img.placeholder {
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+}
+
+.item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.item-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 6rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-meta {
+  font-size: 24rpx;
+  color: #999;
+  margin-bottom: 8rpx;
+}
+
+.item-dates {
+  display: flex;
+  align-items: center;
+  font-size: 24rpx;
+}
+
+.date-label { color: #999; margin-right: 8rpx; }
+.date-val { color: #27ae60; }
+.date-val.expired { color: #e74c3c; font-weight: 600; }
+
+.load-more {
+  text-align: center;
+  padding: 20rpx;
+  color: #667eea;
+  font-size: 26rpx;
+}
+
+.fab {
+  position: fixed;
+  right: 40rpx;
+  bottom: 120rpx;
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
+  background: #667eea;
+  color: #fff;
+  font-size: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 20rpx rgba(102,126,234,0.4);
+}

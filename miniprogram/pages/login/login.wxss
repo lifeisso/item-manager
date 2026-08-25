@@ -1,0 +1,77 @@
+.login-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 0 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 120rpx;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 60rpx;
+}
+
+.login-title {
+  display: block;
+  font-size: 56rpx;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12rpx;
+}
+
+.login-subtitle {
+  display: block;
+  font-size: 26rpx;
+  color: rgba(255,255,255,0.8);
+}
+
+.tab-bar {
+  display: flex;
+  width: 100%;
+  max-width: 600rpx;
+  background: rgba(255,255,255,0.2);
+  border-radius: 16rpx 16rpx 0 0;
+  overflow: hidden;
+}
+
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 20rpx;
+  font-size: 30rpx;
+  color: rgba(255,255,255,0.7);
+  transition: all 0.3s;
+}
+
+.tab-item.active {
+  background: #fff;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.form-card {
+  width: 100%;
+  max-width: 600rpx;
+  background: #fff;
+  border-radius: 0 0 16rpx 16rpx;
+  padding: 40rpx;
+}
+
+.login-btn {
+  margin-top: 20rpx;
+  width: 100%;
+}
+
+.radio-group {
+  display: flex;
+  gap: 30rpx;
+  margin-top: 10rpx;
+}
+
+.radio-item {
+  display: flex;
+  align-items: center;
+  font-size: 28rpx;
+}

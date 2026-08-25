@@ -1,0 +1,44 @@
+<view class="container">
+  <view class="card">
+    <!-- 图标选择 -->
+    <view class="form-group">
+      <text class="form-label">图标</text>
+      <view class="icon-select" bindtap="toggleEmojiPicker">
+        <text class="icon-preview">{{icon}}</text>
+        <text class="icon-hint">点击选择</text>
+      </view>
+    </view>
+
+    <!-- Emoji选择器 -->
+    <view class="emoji-picker" wx:if="{{showEmojiPicker}}">
+      <view class="emoji-grid">
+        <view class="emoji-item" wx:for="{{emojiList}}" wx:key="index"
+          data-icon="{{item}}" bindtap="selectEmoji">{{item}}</view>
+      </view>
+    </view>
+
+    <!-- 名称 -->
+    <view class="form-group">
+      <text class="form-label">计划名称 *</text>
+      <input class="form-input" value="{{name}}" bindinput="onName" placeholder="请输入计划名称" />
+    </view>
+
+    <!-- 备注 -->
+    <view class="form-group">
+      <text class="form-label">备注</text>
+      <textarea class="form-input form-textarea" value="{{description}}" bindinput="onDesc" placeholder="请输入备注说明" auto-height />
+    </view>
+
+    <!-- 模板选择（仅创建时显示） -->
+    <view class="form-group" wx:if="{{!isEdit}}">
+      <text class="form-label">模板</text>
+      <picker mode="selector" range="{{templates}}" range-key="label" value="{{templateIndex}}" bindchange="onTemplateChange">
+        <view class="form-input picker-input">
+          {{templateIndex >= 0 ? templates[templateIndex].label : '请选择模板（可选）'}}
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <button class="btn-primary submit-btn" bindtap="handleSubmit">{{isEdit ? '保存修改' : '创建计划'}}</button>
+</view>

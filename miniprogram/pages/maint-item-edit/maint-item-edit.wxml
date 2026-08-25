@@ -1,0 +1,31 @@
+<view class="container">
+  <view class="card">
+    <!-- 名称 -->
+    <view class="form-group">
+      <text class="form-label">保养项名称 *</text>
+      <input class="form-input" value="{{name}}" bindinput="onName" placeholder="如：更换机油" />
+    </view>
+
+    <!-- 周期天数 -->
+    <view class="form-group">
+      <text class="form-label">周期天数 *</text>
+      <input class="form-input" type="number" value="{{cycle_days}}" bindinput="onCycleDays" placeholder="每隔多少天保养一次" />
+    </view>
+
+    <!-- 上次完成日期 -->
+    <view class="form-group">
+      <text class="form-label">上次完成日期</text>
+      <picker mode="date" value="{{last_done_date}}" bindchange="onLastDoneDate">
+        <view class="form-input picker-input">{{last_done_date || '请选择日期'}}</view>
+      </picker>
+    </view>
+
+    <!-- 排序 -->
+    <view class="form-group">
+      <text class="form-label">排序（数字越小越靠前）</text>
+      <input class="form-input" type="number" value="{{sort_order}}" bindinput="onSortOrder" placeholder="0" />
+    </view>
+  </view>
+
+  <button class="btn-primary submit-btn" bindtap="handleSubmit">{{isEdit ? '保存修改' : '添加保养项'}}</button>
+</view>

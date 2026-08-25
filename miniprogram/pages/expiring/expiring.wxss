@@ -1,0 +1,72 @@
+.days-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.days-selector .form-label {
+  margin-bottom: 0;
+}
+
+.days-picker {
+  display: flex;
+  align-items: center;
+  background: #f5f5f5;
+  border-radius: 12rpx;
+  padding: 12rpx 24rpx;
+}
+
+.days-value {
+  font-size: 28rpx;
+  color: #667eea;
+  font-weight: 600;
+  margin-right: 12rpx;
+}
+
+.picker-arrow {
+  font-size: 20rpx;
+  color: #999;
+}
+
+.expiring-card {
+  padding: 20rpx 24rpx;
+}
+
+.expiring-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.expiring-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+  flex: 1;
+}
+
+.expiring-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.expiring-meta {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.expiring-date {
+  font-size: 24rpx;
+}
+
+.text-danger {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+.text-warning {
+  color: #f39c12;
+  font-weight: 600;
+}

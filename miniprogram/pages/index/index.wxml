@@ -1,0 +1,41 @@
+<view class="container">
+  <!-- 过期提醒横幅 -->
+  <view class="alert-banner" wx:if="{{expiringCount > 0}}" bindtap="goExpiring">
+    <text class="alert-icon">⚠️</text>
+    <text class="alert-text">{{expiringCount}}个物品即将/已过期</text>
+  </view>
+
+  <!-- 分类筛选 -->
+  <scroll-view class="category-bar" scroll-x>
+    <view class="cat-item {{currentCategory === null ? 'active' : ''}}" bindtap="selectCategory" data-id="{{null}}">全部</view>
+    <view class="cat-item {{currentCategory === item.id ? 'active' : ''}}" wx:for="{{categories}}" wx:key="id"
+      bindtap="selectCategory" data-id="{{item.id}}">{{item.name}}</view>
+  </scroll-view>
+
+  <!-- 物品列表 -->
+  <view class="item-list" wx:if="{{items.length > 0}}">
+    <view class="item-card" wx:for="{{items}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <image class="item-img" wx:if="{{item.image_url}}" src="{{item.image_url}}" mode="aspectFill" />
+      <view class="item-img placeholder" wx:else>📦</view>
+      <view class="item-info">
+        <text class="item-name">{{item.name}}</text>
+        <text class="item-meta">{{item.category_name}} · {{item.manufacturer || '无厂家'}}</text>
+        <view class="item-dates">
+          <text class="date-label">过期:</text>
+          <text class="date-val {{item.is_expired ? 'expired' : ''}}">{{item.expiry_date}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:else>
+    <text class="empty-icon">📦</text>
+    <text>暂无物品</text>
+  </view>
+
+  <!-- 加载更多 -->
+  <view class="load-more" wx:if="{{hasMore}}" bindtap="loadMore">加载更多</view>
+
+  <!-- 添加按钮 -->
+  <view class="fab" bindtap="goAddItem">+</view>
+</view>

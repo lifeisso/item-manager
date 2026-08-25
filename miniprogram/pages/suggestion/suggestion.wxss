@@ -1,0 +1,136 @@
+.submit-card {
+  padding: 24rpx;
+}
+
+.suggestion-input {
+  width: 100%;
+  height: 200rpx;
+  padding: 16rpx;
+  border: 1rpx solid #ddd;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+  margin-bottom: 16rpx;
+}
+
+.file-section {
+  margin-bottom: 16rpx;
+}
+
+.file-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16rpx;
+  border: 1rpx dashed #667eea;
+  border-radius: 8rpx;
+  color: #667eea;
+  font-size: 26rpx;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 12rpx 16rpx;
+  background: #f5f7fa;
+  border-radius: 8rpx;
+  font-size: 24rpx;
+}
+
+.file-icon {
+  font-size: 28rpx;
+}
+
+.file-name {
+  color: #667eea;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  color: #999;
+  font-size: 22rpx;
+}
+
+.file-remove {
+  color: #e74c3c;
+  font-size: 28rpx;
+  padding: 0 8rpx;
+}
+
+.submit-btn {
+  background: #667eea;
+  color: #fff;
+  border: none;
+  border-radius: 8rpx;
+  font-size: 30rpx;
+  padding: 16rpx;
+}
+
+.submit-btn[disabled] {
+  background: #a0a0a0;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333;
+  padding: 16rpx 0 8rpx;
+}
+
+.suggestion-card {
+  padding: 20rpx 24rpx;
+}
+
+.suggestion-content {
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: #333;
+  margin-bottom: 12rpx;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.suggestion-file {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 8rpx 12rpx;
+  background: #f5f7fa;
+  border-radius: 6rpx;
+  margin-bottom: 12rpx;
+  font-size: 24rpx;
+}
+
+.suggestion-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.suggestion-time {
+  font-size: 22rpx;
+  color: #999;
+}
+
+.suggestion-del {
+  font-size: 24rpx;
+  color: #e74c3c;
+  padding: 4rpx 12rpx;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 120rpx 0;
+  color: #999;
+}
+
+.empty-icon {
+  font-size: 80rpx;
+  margin-bottom: 16rpx;
+}

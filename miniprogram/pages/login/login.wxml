@@ -1,0 +1,48 @@
+<view class="login-page">
+  <view class="login-header">
+    <text class="login-title">拾物</text>
+    <text class="login-subtitle">物品管理 · 保养提醒</text>
+  </view>
+
+  <view class="tab-bar">
+    <view class="tab-item {{tab === 'login' ? 'active' : ''}}" bindtap="switchTab" data-tab="login">登录</view>
+    <view class="tab-item {{tab === 'register' ? 'active' : ''}}" bindtap="switchTab" data-tab="register">注册</view>
+  </view>
+
+  <!-- 登录表单 -->
+  <view class="form-card" wx:if="{{tab === 'login'}}">
+    <view class="form-group">
+      <text class="form-label">用户名</text>
+      <input class="form-input" placeholder="请输入用户名" value="{{username}}" bindinput="onUsername" />
+    </view>
+    <view class="form-group">
+      <text class="form-label">密码</text>
+      <input class="form-input" placeholder="请输入密码" password value="{{password}}" bindinput="onPassword" />
+    </view>
+    <button class="btn-primary login-btn" bindtap="handleLogin">登录</button>
+  </view>
+
+  <!-- 注册表单 -->
+  <view class="form-card" wx:if="{{tab === 'register'}}">
+    <view class="form-group">
+      <text class="form-label">用户名</text>
+      <input class="form-input" placeholder="请输入用户名(3-50字符)" value="{{username}}" bindinput="onUsername" />
+    </view>
+    <view class="form-group">
+      <text class="form-label">密码</text>
+      <input class="form-input" placeholder="请输入密码(至少6位)" password value="{{password}}" bindinput="onPassword" />
+    </view>
+    <view class="form-group">
+      <text class="form-label">账号类型</text>
+      <view class="radio-group">
+        <label class="radio-item" bindtap="setType" data-type="personal">
+          <radio checked="{{regType === 'personal'}}" color="#667eea" /> 个人账号
+        </label>
+        <label class="radio-item" bindtap="setType" data-type="group">
+          <radio checked="{{regType === 'group'}}" color="#667eea" /> 组账号
+        </label>
+      </view>
+    </view>
+    <button class="btn-primary login-btn" bindtap="handleRegister">注册</button>
+  </view>
+</view>

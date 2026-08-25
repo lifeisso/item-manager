@@ -1,0 +1,39 @@
+<view class="container">
+  <!-- 到期提醒 -->
+  <view class="alert-banner" wx:if="{{dueCount > 0}}">
+    <text class="alert-icon">🔔</text>
+    <text class="alert-text">{{dueCount}}个保养项7天内到期</text>
+  </view>
+
+  <!-- 保养计划列表 -->
+  <view wx:if="{{plans.length > 0}}">
+    <view class="card plan-card" wx:for="{{plans}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <view class="plan-header">
+        <text class="plan-icon">{{item.icon || '🔧'}}</text>
+        <view class="plan-title-wrap">
+          <text class="plan-name">{{item.name}}</text>
+          <text class="plan-desc" wx:if="{{item.description}}">{{item.description}}</text>
+        </view>
+      </view>
+      <view class="plan-footer">
+        <view class="plan-stats">
+          <text class="plan-due" wx:if="{{item.due_count > 0}}">{{item.due_count}}项到期</text>
+          <text class="plan-total">共{{item.total_count}}项</text>
+          <text class="plan-next" wx:if="{{item.next_due_date}}">最近: {{item.next_due_date}}</text>
+        </view>
+        <view class="plan-actions" catchtap="">
+          <text class="action-text" data-id="{{item.id}}" catchtap="goEditPlan">编辑</text>
+          <text class="action-text text-danger" data-id="{{item.id}}" catchtap="handleDeletePlan">删除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:else>
+    <text class="empty-icon">🔧</text>
+    <text>暂无保养计划</text>
+  </view>
+
+  <!-- 添加按钮 -->
+  <view class="fab" bindtap="goAddPlan">+</view>
+</view>

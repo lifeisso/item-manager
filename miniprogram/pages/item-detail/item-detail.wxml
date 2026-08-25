@@ -1,0 +1,48 @@
+<view class="container" wx:if="{{item}}">
+  <!-- 图片 -->
+  <view class="card" wx:if="{{item.image_url}}">
+    <image class="detail-img" src="{{item.image_url}}" mode="aspectFill" bindtap="previewImage" />
+  </view>
+
+  <!-- 基本信息 -->
+  <view class="card">
+    <view class="detail-header">
+      <text class="detail-name">{{item.name}}</text>
+      <text class="badge {{item.is_private ? 'badge-primary' : 'badge-success'}}">
+        {{item.is_private ? '个人' : '组共享'}}
+      </text>
+    </view>
+
+    <view class="detail-row">
+      <text class="detail-label">分类</text>
+      <text class="detail-value">{{item.category_name || '未分类'}}</text>
+    </view>
+    <view class="detail-row">
+      <text class="detail-label">厂家</text>
+      <text class="detail-value">{{item.manufacturer || '未填写'}}</text>
+    </view>
+    <view class="detail-row" wx:if="{{item.usage_desc}}">
+      <text class="detail-label">用途</text>
+      <text class="detail-value">{{item.usage_desc}}</text>
+    </view>
+    <view class="detail-row">
+      <text class="detail-label">生产日期</text>
+      <text class="detail-value">{{item.production_date || '未设置'}}</text>
+    </view>
+    <view class="detail-row">
+      <text class="detail-label">过期日期</text>
+      <text class="detail-value {{item.is_expired ? 'text-danger' : ''}}">{{item.expiry_date || '未设置'}}</text>
+    </view>
+  </view>
+
+  <!-- 操作按钮 -->
+  <view class="action-bar">
+    <button class="btn-primary action-btn" bindtap="goEdit">编辑</button>
+    <button class="btn-danger action-btn" bindtap="handleDelete">删除</button>
+  </view>
+</view>
+
+<view class="empty-state" wx:else>
+  <text class="empty-icon">📦</text>
+  <text>物品不存在或已删除</text>
+</view>

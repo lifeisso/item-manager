@@ -1,0 +1,10 @@
+.picker-input {
+  display: flex;
+  align-items: center;
+  color: #333;
+}
+
+.submit-btn {
+  margin-top: 40rpx;
+  width: 100%;
+}
