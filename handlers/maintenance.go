@@ -345,11 +345,12 @@ func MarkItemDone(c *gin.Context) {
 
 	// Verify item belongs to user's plan
 	var planID string
+	var nextduedate time.Time
 	err := db.Pool.QueryRow(context.Background(), `
-		SELECT mi.plan_id FROM maintenance_items mi
+		SELECT mi.plan_id, mi.next_due_date FROM maintenance_items mi
 		JOIN maintenance_plans mp ON mi.plan_id = mp.id
 		WHERE mi.id = $1 AND mp.user_id = $2
-	`, itemID, userID).Scan(&planID)
+	`, itemID, userID).Scan(&planID, &nextduedate)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权操作此保养项"})
 		return
@@ -371,8 +372,8 @@ func MarkItemDone(c *gin.Context) {
 	// Insert a completion record
 	_, err = db.Pool.Exec(context.Background(), `
 		INSERT INTO maintenance_records (item_id, plan_id, done_date)
-		VALUES ($1, $2, CURRENT_DATE)
-	`, itemID, planID)
+		VALUES ($1, $2, $3)
+	`, itemID, planID, nextduedate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存记录失败"})
 		return
