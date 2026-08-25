@@ -127,6 +127,71 @@ func Migrate() error {
 	// Migrate: add expiring_days column to users table (per-user expiry query range, default 30)
 	Pool.Exec(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS expiring_days INTEGER DEFAULT 30`)
 
+	// Create maintenance_plans table (保养计划/设备)
+	_, err = Pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS maintenance_plans (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+			name VARCHAR(100) NOT NULL,
+			icon VARCHAR(10) DEFAULT '🔧',
+			description TEXT DEFAULT '',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create maintenance_plans table: %w", err)
+	}
+
+	// Create maintenance_items table (保养项/配件)
+	_, err = Pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS maintenance_items (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			plan_id UUID REFERENCES maintenance_plans(id) ON DELETE CASCADE NOT NULL,
+			name VARCHAR(100) NOT NULL,
+			cycle_days INTEGER NOT NULL DEFAULT 30,
+			last_done_date DATE,
+			next_due_date DATE NOT NULL,
+			sort_order INTEGER DEFAULT 0,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create maintenance_items table: %w", err)
+	}
+
+	// Create maintenance_records table (保养完成记录)
+	_, err = Pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS maintenance_records (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			item_id UUID REFERENCES maintenance_items(id) ON DELETE CASCADE NOT NULL,
+			plan_id UUID REFERENCES maintenance_plans(id) ON DELETE CASCADE NOT NULL,
+			done_date DATE NOT NULL DEFAULT CURRENT_DATE,
+			note TEXT DEFAULT '',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create maintenance_records table: %w", err)
+	}
+
+	// Create suggestions table (意见箱)
+	_, err = Pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS suggestions (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+			content TEXT NOT NULL,
+			file_name TEXT DEFAULT '',
+			file_url TEXT DEFAULT '',
+			file_size BIGINT DEFAULT 0,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create suggestions table: %w", err)
+	}
+
 	// Migrate: update existing data - set ownergroup_id based on is_private and owner
 	// For shared items (is_private=false), set ownergroup_id = owner_id (old model: owner_id was group id)
 	// For private items (is_private=true), set ownergroup_id = NULL
@@ -143,6 +208,12 @@ func Migrate() error {
 		"CREATE INDEX IF NOT EXISTS idx_items_category_id ON items(category_id)",
 		"CREATE INDEX IF NOT EXISTS idx_items_deleted_at ON items(deleted_at)",
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)",
+		"CREATE INDEX IF NOT EXISTS idx_maintenance_plans_user_id ON maintenance_plans(user_id)",
+		"CREATE INDEX IF NOT EXISTS idx_maintenance_items_plan_id ON maintenance_items(plan_id)",
+		"CREATE INDEX IF NOT EXISTS idx_maintenance_items_next_due_date ON maintenance_items(next_due_date)",
+		"CREATE INDEX IF NOT EXISTS idx_maintenance_records_item_id ON maintenance_records(item_id)",
+		"CREATE INDEX IF NOT EXISTS idx_maintenance_records_plan_id ON maintenance_records(plan_id)",
+		"CREATE INDEX IF NOT EXISTS idx_suggestions_user_id ON suggestions(user_id)",
 	}
 
 	for _, idx := range indexes {

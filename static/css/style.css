@@ -171,6 +171,66 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #recycle-count-text { font-size: 14px; color: #666; font-weight: 500; }
 .recycle-badge { background: #999; color: #fff; padding: 1px 7px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-left: 4px; }
 
+/* Maintenance Sidebar */
+.maintenance-sidebar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+.maintenance-sidebar:hover { background: #c8e6c9; border-color: #66bb6a; }
+.maintenance-sidebar.active { background: #c8e6c9; border-color: #66bb6a; box-shadow: 0 0 0 2px rgba(102,187,106,0.3); }
+.maintenance-icon { font-size: 18px; }
+#maintenance-count-text { font-size: 14px; color: #2e7d32; font-weight: 500; }
+
+/* Maintenance Plan Cards */
+.maint-plan-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; margin-bottom: 12px; transition: all 0.2s; cursor: pointer; }
+.maint-plan-card:hover { border-color: #66bb6a; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.maint-plan-header { display: flex; align-items: center; justify-content: space-between; }
+.maint-plan-info { display: flex; align-items: center; gap: 10px; }
+.maint-plan-icon { font-size: 28px; }
+.maint-plan-name { font-size: 16px; font-weight: 600; color: #333; }
+.maint-plan-desc { font-size: 12px; color: #999; margin-top: 2px; }
+.maint-plan-stats { display: flex; gap: 12px; margin-top: 8px; font-size: 13px; }
+.maint-stat-overdue { color: #e74c3c; font-weight: 500; }
+.maint-stat-soon { color: #f39c12; font-weight: 500; }
+.maint-stat-ok { color: #27ae60; }
+
+/* Maintenance Item Rows */
+.maint-item-row { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; }
+.maint-item-row:last-child { border-bottom: none; }
+.maint-item-row:hover { background: #fafafa; }
+.maint-item-row-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.maint-item-name { font-weight: 600; font-size: 14px; }
+.maint-item-cycle { color: #888; font-size: 12px; }
+.maint-item-due { font-size: 13px; }
+.maint-item-due.overdue { color: #e74c3c; font-weight: 600; }
+.maint-item-due.soon { color: #f39c12; font-weight: 500; }
+.maint-item-due.ok { color: #27ae60; }
+.maint-item-row-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.maint-item-last-done { color: #aaa; font-size: 12px; }
+.maint-item-actions { display: flex; gap: 6px; }
+.btn-done { background: #27ae60; color: #fff; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.btn-done:hover { background: #219a52; }
+.btn-maint-edit { background: #667eea; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.btn-maint-edit:hover { background: #5a6fd6; }
+.btn-maint-del { background: #fff; color: #e74c3c; border: 1px solid #e74c3c; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.btn-maint-del:hover { background: #e74c3c; color: #fff; }
+
+/* Maintenance Detail Panel */
+.maint-detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #eee; }
+.maint-detail-title { display: flex; align-items: center; gap: 10px; }
+.maint-detail-icon { font-size: 28px; }
+.maint-detail-name { font-size: 20px; font-weight: 600; }
+.btn-back-maint { background: #667eea; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+.btn-back-maint:hover { background: #5a6fd6; }
+
+/* Emoji Picker */
+.emoji-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.emoji-option { cursor: pointer; }
+.emoji-option input[type="radio"] { display: none; }
+.emoji-option span { display: inline-block; font-size: 24px; padding: 4px 8px; border: 2px solid transparent; border-radius: 6px; transition: all 0.2s; }
+.emoji-option input[type="radio"]:checked + span { border-color: #667eea; background: #eef; }
+
+/* Maintenance Alert Banner */
+.maintenance-alert { background: linear-gradient(135deg, #e8f5e9, #c8e6c9); border: 1px solid #a5d6a7; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 14px; color: #2e7d32; }
+.maintenance-alert-icon { font-size: 20px; }
+
 /* Recycle Bin Actions */
 .btn-restore { background: #27ae60; color: #fff; border: none; padding: 2px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
 .btn-restore:hover { background: #219a52; }
@@ -187,6 +247,43 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 /* Expired Card */
 .card-expired { opacity: 0.7; border: 1px solid #ddd; }
+
+/* Maintenance Records */
+.btn-secondary { background: #6c757d; color: #fff; border: none; }
+.btn-secondary:hover { background: #5a6268; }
+.records-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding: 0 4px; }
+.records-header h4 { margin: 0; font-size: 16px; color: #333; }
+.records-count { font-size: 13px; color: #888; }
+.records-list { display: flex; flex-direction: column; gap: 8px; }
+.record-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; }
+.record-item:hover { background: #eef; border-color: #c5cae9; }
+.record-info { display: flex; align-items: center; gap: 16px; flex: 1; }
+.record-name { font-weight: 500; color: #333; font-size: 14px; }
+.record-date { font-size: 13px; color: #888; }
+.btn-record-del { background: #fff; color: #e74c3c; border: 1px solid #e74c3c; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.btn-record-del:hover { background: #e74c3c; color: #fff; }
+
+/* Suggestions (意见箱) */
+.suggestion-sidebar { cursor: pointer; padding: 8px 12px; border-radius: 8px; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+.suggestion-sidebar:hover { background: #f0f0f0; }
+.suggestion-icon { font-size: 18px; }
+.suggestion-toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+.suggestion-list { display: flex; flex-direction: column; gap: 12px; }
+.suggestion-card { background: #fff; border-radius: 10px; border: 1px solid #e0e0e0; padding: 16px; transition: box-shadow 0.2s; }
+.suggestion-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.suggestion-content { font-size: 15px; line-height: 1.6; color: #333; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
+.suggestion-file { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f5f7fa; border-radius: 6px; margin-bottom: 10px; }
+.file-icon { font-size: 16px; }
+.file-link { color: #667eea; text-decoration: none; font-size: 13px; }
+.file-link:hover { text-decoration: underline; }
+.file-size { font-size: 12px; color: #999; margin-left: auto; }
+.suggestion-meta { display: flex; align-items: center; justify-content: space-between; }
+.suggestion-time { font-size: 12px; color: #999; }
+.btn-suggestion-del { background: #fff; color: #e74c3c; border: 1px solid #e74c3c; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.btn-suggestion-del:hover { background: #e74c3c; color: #fff; }
+.file-name-preview { font-size: 12px; color: #666; margin-top: 4px; }
+#suggestion-content { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical; font-family: inherit; }
+#suggestion-file { margin-top: 4px; }
 
 /* Toast */
 #toast-container { position: fixed; top: 20px; right: 20px; z-index: 2000; }

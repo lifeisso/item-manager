@@ -107,6 +107,34 @@ func main() {
 			// User settings
 			protected.GET("/settings/expiring-days", handlers.GetExpiringDays)
 			protected.PUT("/settings/expiring-days", handlers.UpdateExpiringDays)
+
+			// Maintenance plans
+			protected.GET("/maintenance/plans", handlers.GetPlans)
+			protected.POST("/maintenance/plans", handlers.CreatePlan)
+			protected.PUT("/maintenance/plans/:id", handlers.UpdatePlan)
+			protected.DELETE("/maintenance/plans/:id", handlers.DeletePlan)
+
+			// Maintenance items
+			protected.GET("/maintenance/plans/:planId/items", handlers.GetMaintItems)
+			protected.POST("/maintenance/plans/:planId/items", handlers.CreateMaintItem)
+			protected.PUT("/maintenance/items/:id", handlers.UpdateMaintItem)
+			protected.DELETE("/maintenance/items/:id", handlers.DeleteMaintItem)
+			protected.POST("/maintenance/items/:id/done", handlers.MarkItemDone)
+
+			// Maintenance due items
+			protected.GET("/maintenance/due", handlers.GetDueItems)
+
+			// Maintenance records
+			protected.GET("/maintenance/records", handlers.GetAllRecords)
+			protected.GET("/maintenance/plans/:planId/records", handlers.GetPlanRecords)
+			protected.DELETE("/maintenance/records/:id", handlers.DeleteRecord)
+
+			// Suggestions (意见箱)
+			protected.POST("/suggestions", handlers.CreateSuggestion)
+			protected.GET("/suggestions", handlers.GetSuggestions)
+			protected.GET("/suggestions/all", handlers.GetAllSuggestions)
+			protected.DELETE("/suggestions/:id", handlers.DeleteSuggestion)
+			protected.GET("/suggestions/:id/download", handlers.DownloadSuggestionFile)
 		}
 	}
 

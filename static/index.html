@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>物品管理系统</title>
+    <title>拾物</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
     <!-- 登录/注册页面 -->
     <div id="auth-page" class="page">
         <div class="auth-container">
-            <h1>物品管理系统</h1>
+            <h1>拾物</h1>
             <div class="tab-container">
                 <button class="tab-btn active" onclick="switchAuthTab('login')">登录</button>
                 <button class="tab-btn" onclick="switchAuthTab('register')">注册</button>
@@ -53,7 +53,7 @@
     <div id="main-page" class="page hidden">
         <nav class="navbar">
             <div class="nav-left">
-                <h1>物品管理系统</h1>
+                <h1>拾物</h1>
             </div>
             <div class="nav-right">
                 <span id="user-info" class="user-badge"></span>
@@ -78,10 +78,24 @@
                     </div>
                 </div>
                 <div class="sidebar-section">
+                    <h3>保养提醒</h3>
+                    <div id="maintenance-sidebar" class="maintenance-sidebar" onclick="showMaintenanceView()">
+                        <span class="maintenance-icon">🔧</span>
+                        <span id="maintenance-count-text">保养提醒</span>
+                    </div>
+                </div>
+                <div class="sidebar-section">
                     <h3>废物站</h3>
                     <div id="recycle-sidebar" class="recycle-sidebar" onclick="showRecycleBin()">
                         <span class="recycle-icon">🗑️</span>
                         <span id="recycle-count-text">废物站</span>
+                    </div>
+                </div>
+                <div class="sidebar-section">
+                    <h3>意见箱</h3>
+                    <div class="suggestion-sidebar" onclick="showSuggestionView()">
+                        <span class="suggestion-icon">📮</span>
+                        <span>意见箱</span>
                     </div>
                 </div>
                 <div class="sidebar-section">
@@ -109,12 +123,13 @@
                     <div class="content-title-wrap">
                         <h2 id="content-title">全部物品</h2>
                         <span id="expiring-days-selector" class="hidden"></span>
-                        <div class="view-toggle">
+                        <div id="view-toggle" class="view-toggle">
                             <button id="view-grid-btn" class="active" onclick="toggleViewMode('grid')" title="卡片视图">▦</button>
                             <button id="view-list-btn" onclick="toggleViewMode('list')" title="列表视图">☰</button>
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="showAddItemModal()">+ 添加物品</button>
+                    <button id="btn-add-item" class="btn btn-primary" onclick="showAddItemModal()">+ 添加物品</button>
+                    <button id="btn-add-maint-plan" class="btn btn-primary hidden" onclick="showAddMaintPlanModal()">+ 添加保养计划</button>
                 </div>
                 <div id="items-grid" class="items-grid">
                     <!-- 物品卡片将通过JS动态生成 -->
@@ -241,6 +256,126 @@
         </div>
     </div>
 
+    <!-- 模态框：添加/编辑保养计划 -->
+    <div id="maint-plan-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="maint-plan-modal-title">添加保养计划</h3>
+                <button class="modal-close" onclick="closeModal('maint-plan-modal')">&times;</button>
+            </div>
+            <form onsubmit="handleMaintPlanSubmit(event)">
+                <input type="hidden" id="maint-plan-edit-id">
+                <div class="form-group">
+                    <label>设备名称 <span class="required">*</span></label>
+                    <input type="text" id="maint-plan-name" required maxlength="100" placeholder="如：净水器、汽车">
+                </div>
+                <div class="form-group">
+                    <label>图标</label>
+                    <div class="emoji-picker">
+                        <label class="emoji-option"><input type="radio" name="maint-plan-icon" value="💧" checked><span>💧</span></label>
+                        <label class="emoji-option"><input type="radio" name="maint-plan-icon" value="🚗"><span>🚗</span></label>
+                        <label class="emoji-option"><input type="radio" name="maint-plan-icon" value="🏠"><span>🏠</span></label>
+                        <label class="emoji-option"><input type="radio" name="maint-plan-icon" value="🔧"><span>🔧</span></label>
+                        <label class="emoji-option"><input type="radio" name="maint-plan-icon" value="⚡"><span>⚡</span></label>
+                        <label class="emoji-option"><input type="radio" name="maint-plan-icon" value="🛁"><span>🛁</span></label>
+                        <label class="emoji-option"><input type="radio" name="maint-plan-icon" value="🌿"><span>🌿</span></label>
+                        <label class="emoji-option"><input type="radio" name="maint-plan-icon" value="❄️"><span>❄️</span></label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <textarea id="maint-plan-desc" rows="2" placeholder="备注说明（可选）"></textarea>
+                </div>
+                <div class="form-group" id="maint-template-group">
+                    <label>快捷模板</label>
+                    <select id="maint-plan-template">
+                        <option value="">不使用模板</option>
+                        <option value="water_purifier">💧 净水器（1-5级滤芯）</option>
+                        <option value="car">🚗 汽车保养（机油/机滤）</option>
+                    </select>
+                    <small class="form-hint">选择模板将自动创建常用保养项</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeModal('maint-plan-modal')">取消</button>
+                    <button type="submit" class="btn btn-primary">确定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 模态框：添加/编辑保养项 -->
+    <div id="maint-item-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="maint-item-modal-title">添加保养项</h3>
+                <button class="modal-close" onclick="closeModal('maint-item-modal')">&times;</button>
+            </div>
+            <form onsubmit="handleMaintItemSubmit(event)">
+                <input type="hidden" id="maint-item-edit-id">
+                <input type="hidden" id="maint-item-plan-id">
+                <div class="form-group">
+                    <label>保养项名称 <span class="required">*</span></label>
+                    <input type="text" id="maint-item-name" required maxlength="100" placeholder="如：1级滤芯、机油">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>更换周期（天）<span class="required">*</span></label>
+                        <input type="number" id="maint-item-cycle" required min="1" max="3650" placeholder="如30">
+                    </div>
+                    <div class="form-group">
+                        <label>上次完成日期</label>
+                        <input type="date" id="maint-item-last-done">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>排序序号</label>
+                    <input type="number" id="maint-item-sort" min="0" max="999" placeholder="0" value="0">
+                    <small class="form-hint">数字越小排越前</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeModal('maint-item-modal')">取消</button>
+                    <button type="submit" class="btn btn-primary">确定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 模态框：保养记录 -->
+    <div id="maint-records-modal" class="modal hidden">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>保养记录</h3>
+                <button class="modal-close" onclick="closeModal('maint-records-modal')">&times;</button>
+            </div>
+            <div id="maint-records-content" style="max-height:60vh;overflow-y:auto;"></div>
+        </div>
+    </div>
+
+    <!-- 模态框：提交意见 -->
+    <div id="suggestion-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>提交意见</h3>
+                <button class="modal-close" onclick="closeModal('suggestion-modal')">&times;</button>
+            </div>
+            <form id="suggestion-form" onsubmit="handleSuggestionSubmit(event)">
+                <div class="form-group">
+                    <label>意见内容</label>
+                    <textarea id="suggestion-content" rows="4" placeholder="请输入您的意见或建议..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>附件（可选，最大50MB）</label>
+                    <input type="file" id="suggestion-file">
+                    <div id="suggestion-file-name" class="file-name-preview"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeModal('suggestion-modal')">取消</button>
+                    <button type="submit" class="btn btn-primary">提交</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 模态框：确认删除 -->
     <div id="confirm-modal" class="modal hidden">
         <div class="modal-content modal-small">
@@ -277,6 +412,6 @@
     <!-- Toast 通知 -->
     <div id="toast-container"></div>
 
-	<script src="/static/js/app.js?v=20260821b"></script>
+    <script src="/static/js/app.js?v=20260824b"></script>
 </body>
 </html>

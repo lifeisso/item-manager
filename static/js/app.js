@@ -11,6 +11,11 @@ let expiringItems = []; // 缓存即将过期物品
 let expiringDays = 30; // 默认30天，实际值按用户从localStorage加载
 let viewMode = 'grid'; // 'grid' 或 'list'
 let showingRecycleBin = false; // 是否正在查看废物站
+let showingMaintenance = false; // 是否正在查看保养提醒
+let maintenancePlans = []; // 保养计划列表
+let currentMaintPlanId = null; // 当前查看的保养计划ID
+let maintenanceDueCount = 0; // 到期保养项数量
+let showingSuggestions = false; // 是否正在查看意见箱
 
 // ===== API Helper =====
 async function api(method, path, data = null, isFormData = false) {
@@ -78,21 +83,26 @@ function showAuthPage() {
 async function showMainPage() {
     document.getElementById('auth-page').classList.add('hidden');
     document.getElementById('main-page').classList.remove('hidden');
- 	//重置视图状态，确保每次登录默认显示"全部物品"页面
+    // 重置视图状态，确保每次登录默认显示"全部物品"页面
     showingExpiring = false;
     showingRecycleBin = false;
+    showingMaintenance = false;
+    showingSuggestions = false;
+    currentMaintPlanId = null;
     document.getElementById('expiring-sidebar').classList.remove('active');
     document.getElementById('recycle-sidebar').classList.remove('active');
+    document.getElementById('maintenance-sidebar').classList.remove('active');
     document.getElementById('expiring-days-selector').classList.add('hidden');
     document.getElementById('expiry-alert').classList.remove('hidden');
     document.getElementById('content-title').textContent = '全部物品';
-
+    setViewButtons(false);
     updateUserInfo();
     await loadExpiringDays(); // 等待从服务器加载用户独立的查询范围天数
     loadCategories();
     loadItems();
     loadExpiryAlerts();
     loadRecycleBinCount();
+    loadMaintenanceDueCount();
 }
 
 function updateUserInfo() {
@@ -199,9 +209,12 @@ function selectCategory(catId) {
     currentPage = 1;
     showingExpiring = false;
     showingRecycleBin = false;
+    showingMaintenance = false;
     document.getElementById('expiring-sidebar').classList.remove('active');
     document.getElementById('recycle-sidebar').classList.remove('active');
+    document.getElementById('maintenance-sidebar').classList.remove('active');
     document.getElementById('expiring-days-selector').classList.add('hidden');
+    setViewButtons(false);
     renderCategories();
     loadItems();
     const cat = categories.find(c => c.id === catId);
@@ -276,6 +289,12 @@ function toggleViewMode(mode) {
     }
     if (showingExpiring) {
         renderExpiringView();
+    } else if (showingMaintenance) {
+        if (currentMaintPlanId) {
+            showMaintPlanDetail(currentMaintPlanId);
+        } else {
+            renderMaintenancePlans();
+        }
     } else {
         loadItems();
     }
@@ -612,7 +631,7 @@ async function loadExpiryAlerts() {
 }
 
 // Show expiring items in the main content area
-function showExpiringItems() {
+async function showExpiringItems() {
     const sidebarEl = document.getElementById('expiring-sidebar');
     if (showingExpiring) {
         // Toggle off - back to normal view
@@ -626,9 +645,14 @@ function showExpiringItems() {
     }
     showingExpiring = true;
     showingRecycleBin = false;
+    showingMaintenance = false;
     document.getElementById('recycle-sidebar').classList.remove('active');
+    document.getElementById('maintenance-sidebar').classList.remove('active');
+    setViewButtons(false);
     sidebarEl.classList.add('active');
     document.getElementById('expiry-alert').classList.add('hidden');
+    // 确保加载当前用户的天数设置
+    await loadExpiringDays();
     renderExpiringView();
 }
 
@@ -775,7 +799,10 @@ function showRecycleBin() {
     }
     showingRecycleBin = true;
     showingExpiring = false;
+    showingMaintenance = false;
     document.getElementById('expiring-sidebar').classList.remove('active');
+    document.getElementById('maintenance-sidebar').classList.remove('active');
+    setViewButtons(false);
     document.getElementById('expiring-days-selector').classList.add('hidden');
     document.getElementById('expiry-alert').classList.add('hidden');
     sidebarEl.classList.add('active');
@@ -859,15 +886,19 @@ function getExpiringDaysKey() {
 async function loadExpiringDays() {
     // 优先从服务器加载，localStorage 作为离线缓存
     const key = getExpiringDaysKey();
+    console.log('[loadExpiringDays] key:', key, 'currentUser:', JSON.stringify(currentUser), 'expiringDays before:', expiringDays);
     const res = await api('GET', '/settings/expiring-days');
+    console.log('[loadExpiringDays] API response:', JSON.stringify(res));
     if (res && typeof res.expiring_days === 'number' && res.expiring_days > 0) {
         expiringDays = res.expiring_days;
+        console.log('[loadExpiringDays] Set from server:', expiringDays);
         if (key) localStorage.setItem(key, expiringDays.toString());
         return;
     }
     // 回退到 localStorage 缓存
     if (key) {
         const saved = localStorage.getItem(key);
+        console.log('[loadExpiringDays] localStorage fallback, saved:', saved);
         if (saved !== null) {
             expiringDays = parseInt(saved);
         } else {
@@ -877,6 +908,7 @@ async function loadExpiringDays() {
         // currentUser 未设置时，重置为默认值
         expiringDays = 30;
     }
+    console.log('[loadExpiringDays] Final expiringDays:', expiringDays);
 }
 
 async function saveExpiringDays() {
@@ -891,6 +923,516 @@ async function saveExpiringDays() {
         // 服务器保存失败不影响本地使用，localStorage已保存
         console.warn('保存到服务器失败，已使用本地缓存:', e);
     }
+}
+
+// ===== Maintenance (保养提醒) =====
+
+function setViewButtons(isMaintenance) {
+    const isSuggestion = showingSuggestions;
+    document.getElementById('btn-add-item').classList.toggle('hidden', isMaintenance || isSuggestion);
+    document.getElementById('btn-add-maint-plan').classList.toggle('hidden', !isMaintenance);
+    document.getElementById('view-toggle').classList.toggle('hidden', isMaintenance || isSuggestion);
+}
+
+async function loadMaintenanceDueCount() {
+    const res = await api('GET', '/maintenance/due?days=7');
+    if (res) {
+        maintenanceDueCount = res.count || 0;
+    } else {
+        maintenanceDueCount = 0;
+    }
+    const text = document.getElementById('maintenance-count-text');
+    if (maintenanceDueCount > 0) {
+        text.innerHTML = '保养提醒 <span class="expiring-badge">' + maintenanceDueCount + '</span>';
+    } else {
+        text.textContent = '保养提醒';
+    }
+}
+
+async function showMaintenanceView() {
+    const sidebarEl = document.getElementById('maintenance-sidebar');
+    // Toggle off
+    if (showingMaintenance && !currentMaintPlanId) {
+        showingMaintenance = false;
+        sidebarEl.classList.remove('active');
+        document.getElementById('content-title').textContent = '全部物品';
+        document.getElementById('expiry-alert').classList.remove('hidden');
+        setViewButtons(false);
+        loadItems();
+        return;
+    }
+    showingMaintenance = true;
+    showingExpiring = false;
+    showingRecycleBin = false;
+    currentMaintPlanId = null;
+    document.getElementById('expiring-sidebar').classList.remove('active');
+    document.getElementById('recycle-sidebar').classList.remove('active');
+    sidebarEl.classList.add('active');
+    document.getElementById('expiring-days-selector').classList.add('hidden');
+    document.getElementById('expiry-alert').classList.add('hidden');
+    setViewButtons(true);
+    await loadMaintenancePlans();
+    renderMaintenancePlans();
+}
+
+async function loadMaintenancePlans() {
+    const res = await api('GET', '/maintenance/plans');
+    if (res) {
+        maintenancePlans = res.plans || [];
+    } else {
+        maintenancePlans = [];
+    }
+}
+
+function renderMaintenancePlans() {
+    document.getElementById('content-title').textContent = '🔧 保养提醒';
+    const grid = document.getElementById('items-grid');
+    grid.className = 'items-grid';
+    let html = '';
+
+    if (maintenancePlans.length === 0) {
+        html = '<div class="empty-state"><div class="empty-icon">🔧</div><p>暂无保养计划</p><p style="font-size:13px;color:#999;margin-top:8px;">点击右上角"+ 添加保养计划"开始</p></div>';
+    } else {
+        html += '<div style="margin-bottom:12px;">';
+        maintenancePlans.forEach(plan => {
+            const dueCount = plan.due_count || 0;
+            const totalCount = plan.total_count || 0;
+            let statsHtml = '';
+            if (dueCount > 0) {
+                statsHtml += '<span class="maint-stat-overdue">⚠ ' + dueCount + '项即将到期</span>';
+            }
+            if (totalCount - dueCount > 0) {
+                statsHtml += '<span class="maint-stat-ok">✅ ' + (totalCount - dueCount) + '项正常</span>';
+            }
+            const nextDue = plan.next_due_date ? '最近到期: ' + plan.next_due_date : '';
+            html += '<div class="maint-plan-card" onclick="showMaintPlanDetail(\'' + plan.id + '\')">';
+            html += '<div class="maint-plan-header">';
+            html += '<div class="maint-plan-info"><span class="maint-plan-icon">' + escapeHtml(plan.icon || '🔧') + '</span>';
+            html += '<div><div class="maint-plan-name">' + escapeHtml(plan.name) + '</div>';
+            if (plan.description) html += '<div class="maint-plan-desc">' + escapeHtml(plan.description) + '</div>';
+            html += '</div></div>';
+            html += '<div style="display:flex;gap:4px;">';
+            html += '<button class="btn-maint-edit" onclick="event.stopPropagation();showEditMaintPlanModal(\'' + plan.id + '\')">编辑</button>';
+            html += '<button class="btn-maint-del" onclick="event.stopPropagation();confirmDeleteMaintPlan(\'' + plan.id + '\',\'' + escapeHtml(plan.name) + '\')">删除</button>';
+            html += '</div></div>';
+            html += '<div class="maint-plan-stats">' + statsHtml + '</div>';
+            if (nextDue) html += '<div style="font-size:12px;color:#888;margin-top:4px;">' + nextDue + '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+
+    grid.innerHTML = html;
+    document.getElementById('pagination').innerHTML = '';
+}
+
+async function showMaintPlanDetail(planId) {
+    currentMaintPlanId = planId;
+    const plan = maintenancePlans.find(p => p.id === planId);
+    const res = await api('GET', '/maintenance/plans/' + planId + '/items');
+    const items = res ? (res.items || []) : [];
+
+    document.getElementById('content-title').textContent = (plan ? plan.icon + ' ' + plan.name : '保养详情');
+    const grid = document.getElementById('items-grid');
+    grid.className = 'items-grid';
+
+    let html = '<div class="maint-detail-header">';
+    html += '<div class="maint-detail-title">';
+    html += '<button class="btn-back-maint" onclick="showMaintenanceView()">← 返回列表</button>';
+    if (plan) html += '<span class="maint-detail-icon">' + escapeHtml(plan.icon || '🔧') + '</span><span class="maint-detail-name">' + escapeHtml(plan.name) + '</span>';
+    html += '</div>';
+    html += '<button class="btn btn-small btn-primary" onclick="showAddMaintItemModal(\'' + planId + '\')">+ 添加保养项</button>';
+    html += '<button class="btn btn-small btn-secondary" onclick="showPlanRecords(\'' + planId + '\')">📋 查看记录</button>';
+    html += '</div>';
+
+    if (items.length === 0) {
+        html += '<div class="empty-state"><div class="empty-icon">🔧</div><p>暂无保养项，点击右上角添加</p></div>';
+    } else {
+        html += '<div style="background:#fff;border-radius:10px;border:1px solid #e0e0e0;overflow:hidden;">';
+        items.forEach(item => {
+            let dueClass = 'ok';
+            let dueText = '';
+            if (item.is_overdue) {
+                dueClass = 'overdue';
+                dueText = '⚠ 已过期 ' + Math.abs(item.days_until_due) + ' 天';
+            } else if (item.days_until_due <= 7) {
+                dueClass = 'soon';
+                dueText = item.days_until_due + ' 天后到期';
+            } else {
+                dueClass = 'ok';
+                dueText = item.next_due_date + ' 到期';
+            }
+            const lastDone = item.last_done_date ? item.last_done_date : '未记录';
+            html += '<div class="maint-item-row" data-item-id="' + item.id + '" data-name="' + escapeHtml(item.name) + '" data-cycle="' + item.cycle_days + '" data-last-done="' + (item.last_done_date || '') + '" data-sort="' + item.sort_order + '">';
+            html += '<div class="maint-item-row-top">';
+            html += '<span class="maint-item-name">' + escapeHtml(item.name) + '</span>';
+            html += '<span class="maint-item-cycle">周期' + item.cycle_days + '天</span>';
+            html += '<span class="maint-item-due ' + dueClass + '">' + dueText + '</span>';
+            html += '</div>';
+            html += '<div class="maint-item-row-bottom">';
+            html += '<span class="maint-item-last-done">上次完成: ' + lastDone + '</span>';
+            html += '<div class="maint-item-actions">';
+            html += '<button class="btn-done" onclick="markMaintItemDone(\'' + item.id + '\')">✓ 完成</button>';
+            html += '<button class="btn-maint-edit" onclick="editMaintItemFromRow(this)">编辑</button>';
+            html += '<button class="btn-maint-del" onclick="deleteMaintItemFromRow(this)">删除</button>';
+            html += '</div></div></div>';
+        });
+        html += '</div>';
+    }
+
+    grid.innerHTML = html;
+    document.getElementById('pagination').innerHTML = '';
+}
+
+function editMaintItemFromRow(btn) {
+    const row = btn.closest('.maint-item-row');
+    const itemId = row.dataset.itemId;
+    const name = row.dataset.name;
+    const cycleDays = parseInt(row.dataset.cycle);
+    const lastDone = row.dataset.lastDone;
+    const sortOrder = parseInt(row.dataset.sort);
+    showEditMaintItemModal(itemId, name, cycleDays, lastDone, sortOrder);
+}
+
+function deleteMaintItemFromRow(btn) {
+    const row = btn.closest('.maint-item-row');
+    const itemId = row.dataset.itemId;
+    const name = row.dataset.name;
+    confirmDeleteMaintItem(itemId, name);
+}
+
+// ===== Maintenance Plan Modals =====
+
+function showAddMaintPlanModal() {
+    document.getElementById('maint-plan-modal-title').textContent = '添加保养计划';
+    document.getElementById('maint-plan-edit-id').value = '';
+    document.getElementById('maint-plan-name').value = '';
+    document.getElementById('maint-plan-desc').value = '';
+    document.getElementById('maint-template-group').classList.remove('hidden');
+    document.getElementById('maint-plan-template').value = '';
+    // Reset icon selection
+    document.querySelector('input[name="maint-plan-icon"][value="💧"]').checked = true;
+    openModal('maint-plan-modal');
+}
+
+function showEditMaintPlanModal(planId) {
+    const plan = maintenancePlans.find(p => p.id === planId);
+    if (!plan) return;
+    document.getElementById('maint-plan-modal-title').textContent = '编辑保养计划';
+    document.getElementById('maint-plan-edit-id').value = planId;
+    document.getElementById('maint-plan-name').value = plan.name;
+    document.getElementById('maint-plan-desc').value = plan.description || '';
+    document.getElementById('maint-template-group').classList.add('hidden');
+    // Set icon
+    const iconRadio = document.querySelector('input[name="maint-plan-icon"][value="' + (plan.icon || '🔧') + '"]');
+    if (iconRadio) iconRadio.checked = true;
+    openModal('maint-plan-modal');
+}
+
+async function handleMaintPlanSubmit(e) {
+    e.preventDefault();
+    const editId = document.getElementById('maint-plan-edit-id').value;
+    const name = document.getElementById('maint-plan-name').value.trim();
+    const icon = document.querySelector('input[name="maint-plan-icon"]:checked').value;
+    const desc = document.getElementById('maint-plan-desc').value.trim();
+    const template = document.getElementById('maint-plan-template').value;
+
+    if (!name) { showToast('请输入设备名称', 'error'); return; }
+
+    let res;
+    if (editId) {
+        res = await api('PUT', '/maintenance/plans/' + editId, { name, icon, description: desc });
+    } else {
+        res = await api('POST', '/maintenance/plans', { name, icon, description: desc, template });
+    }
+
+    if (res) {
+        showToast(editId ? '更新成功' : '创建成功', 'success');
+        closeModal('maint-plan-modal');
+        await loadMaintenancePlans();
+        renderMaintenancePlans();
+        loadMaintenanceDueCount();
+    }
+}
+
+function confirmDeleteMaintPlan(planId, planName) {
+    document.getElementById('confirm-message').textContent = '确定删除保养计划"' + planName + '"及其所有保养项吗？';
+    document.getElementById('confirm-btn').onclick = async () => {
+        const res = await api('DELETE', '/maintenance/plans/' + planId);
+        if (res) {
+            showToast('删除成功', 'success');
+            closeModal('confirm-modal');
+            await loadMaintenancePlans();
+            renderMaintenancePlans();
+            loadMaintenanceDueCount();
+        }
+    };
+    openModal('confirm-modal');
+}
+
+// ===== Maintenance Item Modals =====
+
+function showAddMaintItemModal(planId) {
+    document.getElementById('maint-item-modal-title').textContent = '添加保养项';
+    document.getElementById('maint-item-edit-id').value = '';
+    document.getElementById('maint-item-plan-id').value = planId;
+    document.getElementById('maint-item-name').value = '';
+    document.getElementById('maint-item-cycle').value = '30';
+    document.getElementById('maint-item-last-done').value = '';
+    document.getElementById('maint-item-sort').value = '0';
+    openModal('maint-item-modal');
+}
+
+function showEditMaintItemModal(itemId, name, cycleDays, lastDone, sortOrder) {
+    document.getElementById('maint-item-modal-title').textContent = '编辑保养项';
+    document.getElementById('maint-item-edit-id').value = itemId;
+    document.getElementById('maint-item-plan-id').value = '';
+    document.getElementById('maint-item-name').value = name;
+    document.getElementById('maint-item-cycle').value = cycleDays;
+    document.getElementById('maint-item-last-done').value = lastDone;
+    document.getElementById('maint-item-sort').value = sortOrder;
+    openModal('maint-item-modal');
+}
+
+async function handleMaintItemSubmit(e) {
+    e.preventDefault();
+    const editId = document.getElementById('maint-item-edit-id').value;
+    const planId = document.getElementById('maint-item-plan-id').value;
+    const name = document.getElementById('maint-item-name').value.trim();
+    const cycleDays = parseInt(document.getElementById('maint-item-cycle').value);
+    const lastDone = document.getElementById('maint-item-last-done').value;
+    const sortOrder = parseInt(document.getElementById('maint-item-sort').value) || 0;
+
+    if (!name) { showToast('请输入保养项名称', 'error'); return; }
+    if (!cycleDays || cycleDays < 1) { showToast('周期天数至少为1', 'error'); return; }
+
+    let res;
+    if (editId) {
+        res = await api('PUT', '/maintenance/items/' + editId, { name, cycle_days: cycleDays, last_done_date: lastDone, sort_order: sortOrder });
+    } else {
+        res = await api('POST', '/maintenance/plans/' + planId + '/items', { name, cycle_days: cycleDays, last_done_date: lastDone, sort_order: sortOrder });
+    }
+
+    if (res) {
+        showToast(editId ? '更新成功' : '添加成功', 'success');
+        closeModal('maint-item-modal');
+        if (currentMaintPlanId) {
+            showMaintPlanDetail(currentMaintPlanId);
+        } else {
+            await loadMaintenancePlans();
+            renderMaintenancePlans();
+        }
+        loadMaintenanceDueCount();
+    }
+}
+
+async function markMaintItemDone(itemId) {
+    const res = await api('POST', '/maintenance/items/' + itemId + '/done');
+    if (res) {
+        showToast('已标记完成，下次到期日期已更新', 'success');
+        if (currentMaintPlanId) {
+            showMaintPlanDetail(currentMaintPlanId);
+        }
+        loadMaintenanceDueCount();
+    }
+}
+
+function confirmDeleteMaintItem(itemId, itemName) {
+    document.getElementById('confirm-message').textContent = '确定删除保养项"' + itemName + '"吗？';
+    document.getElementById('confirm-btn').onclick = async () => {
+        const res = await api('DELETE', '/maintenance/items/' + itemId);
+        if (res) {
+            showToast('删除成功', 'success');
+            closeModal('confirm-modal');
+            if (currentMaintPlanId) {
+                showMaintPlanDetail(currentMaintPlanId);
+            }
+            loadMaintenanceDueCount();
+        }
+    };
+    openModal('confirm-modal');
+}
+
+// ===== Maintenance Records =====
+
+async function showPlanRecords(planId) {
+    const res = await api('GET', '/maintenance/plans/' + planId + '/records');
+    if (!res) return;
+    const records = res.records || [];
+    const plan = maintenancePlans.find(p => p.id === planId);
+    const planName = plan ? plan.icon + ' ' + plan.name : '保养记录';
+
+    let html = '<div class="records-header"><h4>' + escapeHtml(planName) + ' - 保养记录</h4>';
+    html += '<span class="records-count">共 ' + records.length + ' 条</span></div>';
+
+    if (records.length === 0) {
+        html += '<div class="empty-state"><div class="empty-icon">📋</div><p>暂无保养记录</p></div>';
+    } else {
+        html += '<div class="records-list">';
+        records.forEach(r => {
+            html += '<div class="record-item" data-record-id="' + r.id + '">';
+            html += '<div class="record-info">';
+            html += '<span class="record-name">' + escapeHtml(r.item_name) + '</span>';
+            html += '<span class="record-date">完成日期: ' + escapeHtml(r.done_date) + '</span>';
+            html += '</div>';
+            html += '<button class="btn-record-del" onclick="confirmDeleteRecord(\'' + r.id + '\', \'' + escapeHtml(r.item_name) + '\')">删除</button>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+
+    document.getElementById('maint-records-content').innerHTML = html;
+    openModal('maint-records-modal');
+}
+
+function confirmDeleteRecord(recordId, itemName) {
+    closeModal('maint-records-modal');
+    document.getElementById('confirm-message').textContent = '确定删除"' + itemName + '"的保养记录吗？';
+    document.getElementById('confirm-btn').onclick = async () => {
+        const res = await api('DELETE', '/maintenance/records/' + recordId);
+        if (res) {
+            showToast('记录已删除', 'success');
+            closeModal('confirm-modal');
+            // Re-open records modal
+            if (currentMaintPlanId) {
+                showPlanRecords(currentMaintPlanId);
+            }
+        }
+    };
+    openModal('confirm-modal');
+}
+
+// ===== Suggestions (意见箱) =====
+
+function showSuggestionView() {
+    showingSuggestions = true;
+    showingExpiring = false;
+    showingRecycleBin = false;
+    showingMaintenance = false;
+    setViewButtons(true);
+    document.getElementById('content-title').textContent = '📮 意见箱';
+    const grid = document.getElementById('items-grid');
+    grid.className = 'items-grid';
+    loadSuggestions();
+    document.getElementById('pagination').innerHTML = '';
+}
+
+async function loadSuggestions() {
+    const grid = document.getElementById('items-grid');
+    grid.innerHTML = '<div class="loading">加载中...</div>';
+    
+    const res = await api('GET', '/suggestions');
+    if (!res) {
+        grid.innerHTML = '<div class="empty-state"><p>加载失败</p></div>';
+        return;
+    }
+    const suggestions = res.suggestions || [];
+    
+    let html = '<div class="suggestion-toolbar">';
+    html += '<button class="btn btn-primary" onclick="showAddSuggestionModal()">+ 提交意见</button>';
+    html += '</div>';
+    
+    if (suggestions.length === 0) {
+        html += '<div class="empty-state"><div class="empty-icon">📮</div><p>暂无意见，点击右上角提交</p></div>';
+    } else {
+        html += '<div class="suggestion-list">';
+        suggestions.forEach(s => {
+            html += '<div class="suggestion-card" data-id="' + s.id + '">';
+            html += '<div class="suggestion-content">' + escapeHtml(s.content) + '</div>';
+            if (s.file_name) {
+                const fileSizeStr = s.file_size > 1048576 ? (s.file_size / 1048576).toFixed(1) + 'MB' : (s.file_size / 1024).toFixed(0) + 'KB';
+                html += '<div class="suggestion-file">';
+                html += '<span class="file-icon">📎</span>';
+                html += '<a href="/api/suggestions/' + s.id + '/download" class="file-link">' + escapeHtml(s.file_name) + '</a>';
+                html += '<span class="file-size">' + fileSizeStr + '</span>';
+                html += '</div>';
+            }
+            html += '<div class="suggestion-meta">';
+            html += '<span class="suggestion-time">' + new Date(s.created_at).toLocaleString('zh-CN') + '</span>';
+            html += '<button class="btn-suggestion-del" onclick="confirmDeleteSuggestion(\'' + s.id + '\')">删除</button>';
+            html += '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+    
+    grid.innerHTML = html;
+}
+
+function showAddSuggestionModal() {
+    document.getElementById('suggestion-content').value = '';
+    document.getElementById('suggestion-file').value = '';
+    document.getElementById('suggestion-file-name').textContent = '';
+    openModal('suggestion-modal');
+}
+
+// Show selected file name
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('suggestion-file');
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            const nameEl = document.getElementById('suggestion-file-name');
+            if (this.files && this.files[0]) {
+                const size = this.files[0].size;
+                const sizeStr = size > 1048576 ? (size / 1048576).toFixed(1) + 'MB' : (size / 1024).toFixed(0) + 'KB';
+                nameEl.textContent = this.files[0].name + ' (' + sizeStr + ')';
+            } else {
+                nameEl.textContent = '';
+            }
+        });
+    }
+});
+
+async function handleSuggestionSubmit(e) {
+    e.preventDefault();
+    const content = document.getElementById('suggestion-content').value.trim();
+    if (!content) {
+        showToast('请输入意见内容', 'error');
+        return;
+    }
+    
+    const fileInput = document.getElementById('suggestion-file');
+    const formData = new FormData();
+    formData.append('content', content);
+    if (fileInput.files && fileInput.files[0]) {
+        if (fileInput.files[0].size > 50 * 1024 * 1024) {
+            showToast('文件大小不能超过50MB', 'error');
+            return;
+        }
+        formData.append('file', fileInput.files[0]);
+    }
+    
+    // Use fetch for multipart form data
+    try {
+        const response = await fetch('/api/suggestions', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token },
+            body: formData
+        });
+        const data = await response.json();
+        if (response.ok) {
+            showToast('提交成功', 'success');
+            closeModal('suggestion-modal');
+            loadSuggestions();
+        } else {
+            showToast(data.error || '提交失败', 'error');
+        }
+    } catch (err) {
+        showToast('提交失败', 'error');
+    }
+}
+
+function confirmDeleteSuggestion(suggestionId) {
+    document.getElementById('confirm-message').textContent = '确定删除此意见吗？';
+    document.getElementById('confirm-btn').onclick = async () => {
+        const res = await api('DELETE', '/suggestions/' + suggestionId);
+        if (res) {
+            showToast('删除成功', 'success');
+            closeModal('confirm-modal');
+            loadSuggestions();
+        }
+    };
+    openModal('confirm-modal');
 }
 
 // ===== Utility =====
