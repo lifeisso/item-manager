@@ -21,7 +21,7 @@
           <text class="plan-total">共{{item.total_count}}项</text>
           <text class="plan-next" wx:if="{{item.next_due_date}}">最近: {{item.next_due_date}}</text>
         </view>
-        <view class="plan-actions" catchtap="">
+        <view class="plan-actions">
           <text class="action-text" data-id="{{item.id}}" catchtap="goEditPlan">编辑</text>
           <text class="action-text text-danger" data-id="{{item.id}}" catchtap="handleDeletePlan">删除</text>
         </view>

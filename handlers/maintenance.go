@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"item-manager/db"
@@ -278,13 +280,14 @@ func UpdateMaintItem(c *gin.Context) {
 		return
 	}
 
-	// Verify item belongs to user's plan
+	// Verify item belongs to user's plan and get next_due_date
 	var planID string
+	var nextDueDate time.Time
 	err := db.Pool.QueryRow(context.Background(), `
-		SELECT mi.plan_id FROM maintenance_items mi
+		SELECT mi.plan_id, mi.next_due_date FROM maintenance_items mi
 		JOIN maintenance_plans mp ON mi.plan_id = mp.id
 		WHERE mi.id = $1 AND mp.user_id = $2
-	`, itemID, userID).Scan(&planID)
+	`, itemID, userID).Scan(&planID, &nextDueDate)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权操作此保养项"})
 		return
@@ -342,22 +345,25 @@ func DeleteMaintItem(c *gin.Context) {
 func MarkItemDone(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	itemID := c.Param("id")
+	fmt.Fprintf(os.Stdout, "[MarkItemDone] 开始处理: userID=%s, itemID=%s\n", userID, itemID)
 
-	// Verify item belongs to user's plan
+	// Verify item belongs to user's plan and get next_due_date
 	var planID string
-	var nextduedate time.Time
+	var nextDueDate time.Time
 	err := db.Pool.QueryRow(context.Background(), `
 		SELECT mi.plan_id, mi.next_due_date FROM maintenance_items mi
 		JOIN maintenance_plans mp ON mi.plan_id = mp.id
 		WHERE mi.id = $1 AND mp.user_id = $2
-	`, itemID, userID).Scan(&planID, &nextduedate)
+	`, itemID, userID).Scan(&planID, &nextDueDate)
 	if err != nil {
+		fmt.Fprintf(os.Stdout, "[MarkItemDone] 查询保养项失败: userID=%s, itemID=%s, err=%v\n", userID, itemID, err)
 		c.JSON(http.StatusForbidden, gin.H{"error": "无权操作此保养项"})
 		return
 	}
+	fmt.Fprintf(os.Stdout, "[MarkItemDone] 查询结果: planID=%s, nextDueDate=%s\n", planID, nextDueDate.Format("2006-01-02"))
 
 	// Update: last_done_date = today, next_due_date = today + cycle_days
-	_, err = db.Pool.Exec(context.Background(), `
+	tag, err := db.Pool.Exec(context.Background(), `
 		UPDATE maintenance_items
 		SET last_done_date = CURRENT_DATE,
 		    next_due_date = CURRENT_DATE + cycle_days * INTERVAL '1 day',
@@ -365,21 +371,31 @@ func MarkItemDone(c *gin.Context) {
 		WHERE id = $1
 	`, itemID)
 	if err != nil {
+		fmt.Fprintf(os.Stdout, "[MarkItemDone] 更新保养项失败: itemID=%s, err=%v\n", itemID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "标记完成失败"})
 		return
 	}
+	fmt.Fprintf(os.Stdout, "[MarkItemDone] 更新保养项成功: itemID=%s, rowsAffected=%d\n", itemID, tag.RowsAffected())
 
-	// Insert a completion record
+	// Insert a completion record with next_due_date as done_date
+	fmt.Fprintf(os.Stdout, "[MarkItemDone] 插入记录: itemID=%s, planID=%s, done_date=%s\n", itemID, planID, nextDueDate.Format("2006-01-02"))
 	_, err = db.Pool.Exec(context.Background(), `
 		INSERT INTO maintenance_records (item_id, plan_id, done_date)
 		VALUES ($1, $2, $3)
-	`, itemID, planID, nextduedate)
+	`, itemID, planID, nextDueDate)
 	if err != nil {
+		fmt.Fprintf(os.Stdout, "[MarkItemDone] 插入记录失败: itemID=%s, planID=%s, done_date=%s, err=%v\n", itemID, planID, nextDueDate.Format("2006-01-02"), err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存记录失败"})
 		return
 	}
+	fmt.Fprintf(os.Stdout, "[MarkItemDone] 标记完成成功: itemID=%s, done_date=%s\n", itemID, nextDueDate.Format("2006-01-02"))
 
-	c.JSON(http.StatusOK, gin.H{"message": "标记完成"})
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "标记完成",
+		"done_date":     nextDueDate.Format("2006-01-02"),
+		"plan_id":       planID,
+		"rows_affected": tag.RowsAffected(),
+	})
 }
 
 // GetDueItems returns maintenance items due within N days

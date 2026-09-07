@@ -26,7 +26,7 @@
       <view class="suggestion-file" wx:if="{{item.file_name}}">
         <text class="file-icon">📎</text>
         <text class="file-name" bindtap="downloadFile" data-id="{{item.id}}" data-name="{{item.file_name}}">{{item.file_name}}</text>
-        <text class="file-size" wx:if="{{item.file_size}}">({{item.file_size > 1048576 ? (item.file_size / 1048576).toFixed(1) + 'MB' : (item.file_size / 1024).toFixed(0) + 'KB'}})</text>
+        <text class="file-size" wx:if="{{item.file_size}}">({{item.file_size_str}})</text>
       </view>
       <view class="suggestion-meta">
         <text class="suggestion-time">{{item.created_at_str}}</text>

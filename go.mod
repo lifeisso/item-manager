@@ -7,6 +7,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.5.1
+	github.com/soheilhy/cmux v0.1.5
 	golang.org/x/crypto v0.48.0
 )
 

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/tls"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
@@ -10,6 +12,7 @@ import (
 	"item-manager/middleware"
 
 	"github.com/gin-gonic/gin"
+	"github.com/soheilhy/cmux"
 )
 
 func main() {
@@ -144,8 +147,58 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Server starting on port %s...", port)
-	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	certFile := os.Getenv("TLS_CERT")
+	keyFile := os.Getenv("TLS_KEY")
+
+	if certFile != "" && keyFile != "" {
+		// 同时在同一个端口支持 HTTP 和 HTTPS（使用 cmux 多路复用）
+		listener, err := net.Listen("tcp", ":"+port)
+		if err != nil {
+			log.Fatalf("Failed to listen on port %s: %v", port, err)
+		}
+
+		mux := cmux.New(listener)
+
+		// TLS 连接匹配（HTTPS）
+		tlsListener := mux.Match(cmux.TLS())
+		// 其余连接匹配（HTTP）
+		httpListener := mux.Match(cmux.Any())
+
+		// 加载 TLS 证书
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			log.Fatalf("Failed to load TLS certificate: %v", err)
+		}
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+		tlsListener = tls.NewListener(tlsListener, tlsConfig)
+
+		// 启动 HTTPS 服务
+		go func() {
+			log.Printf("HTTPS server starting on port %s...", port)
+			if err := http.Serve(tlsListener, r); err != nil {
+				log.Fatalf("HTTPS server error: %v", err)
+			}
+		}()
+
+		// 启动 HTTP 服务
+		go func() {
+			log.Printf("HTTP server starting on port %s...", port)
+			if err := http.Serve(httpListener, r); err != nil {
+				log.Fatalf("HTTP server error: %v", err)
+			}
+		}()
+
+		log.Printf("Server (HTTP + HTTPS) starting on port %s...", port)
+		if err := mux.Serve(); err != nil {
+			log.Fatalf("Server error: %v", err)
+		}
+	} else {
+		// 仅启动 HTTP 服务（无证书时）
+		log.Printf("HTTP server starting on port %s (no TLS cert configured)...", port)
+		if err := r.Run(":" + port); err != nil {
+			log.Fatalf("Failed to start server: %v", err)
+		}
 	}
 }
