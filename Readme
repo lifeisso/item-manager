@@ -1,0 +1,34 @@
+
+证书
+sudo certbot certonly --manual --preferred-challenges dns -d shiwuwithme.homes
+
+编译
+GOTOOLCHAIN=auto go build main.go
+
+启动环境变量
+export TLS_CERT=/etc/letsencrypt/live/shiwuwithme.homes/fullchain.pem
+export TLS_KEY=/etc/letsencrypt/live/shiwuwithme.homes/privkey.pem
+export DB_HOST=47.113.188.120
+export DB_PORT=5432
+export DB_USER=postgres
+export DB_PASSWORD=123
+export DB_NAME=family_items
+export PORT=8080
+
+
+linux系统
+sudo -u postgres psql
+\l
+\c item_manager
+\d
+DROP SCHEMA public CASCADE ;
+CREATE SCHEMA public;
+-- 先切换到其他数据库（不能删除当前连接的数据库）
+\c postgres
+
+
+windows系统
+pg_ctl -D "C:\Program Files\PostgreSQL\18\data" status
+psql -U postgres -h localhost -p 5432 -d postgres
+tasklist | findstr postgres
+pg_ctl -D "C:\Program Files\PostgreSQL\18\data" start
