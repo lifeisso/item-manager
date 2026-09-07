@@ -1,6 +1,6 @@
 App({
   globalData: {
-    baseUrl: 'http://47.113.188.120:8080', // 本地开发用 127.0.0.1；真机调试需改为电脑局域网IP，生产环境改为HTTPS域名
+    baseUrl: 'https://shiwuwithme.homes:8080', // 本地开发用 127.0.0.1；真机调试需改为电脑局域网IP，生产环境改为HTTPS域名
     token: '',
     currentUser: null,
     expiringDays: 30
