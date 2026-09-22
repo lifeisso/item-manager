@@ -36,7 +36,10 @@ function request(method, path, data) {
         }
       },
       fail(err) {
-        wx.showToast({ title: '网络错误', icon: 'none' })
+        console.error('[api] 请求失败:', app.globalData.baseUrl + '/api' + path, err)
+        // 优先展示真实错误原因（如 url not in domain list / timeout / SSL 等），便于排查
+        const msg = (err && err.errMsg) ? err.errMsg.replace(/^request:fail\s*/, '') : '网络错误'
+        wx.showToast({ title: msg, icon: 'none' })
         reject(err)
       }
     })
